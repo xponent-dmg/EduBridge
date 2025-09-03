@@ -5,7 +5,6 @@ require("dotenv").config();
 const userRoutes = require("./routes/userRoutes");
 const taskRoutes = require("./routes/taskRoutes");
 const submissionRoutes = require("./routes/submissionRoutes");
-const fileRoutes = require("./routes/fileRoutes");
 const portfolioRoutes = require("./routes/portfolioRoutes");
 const edupointsRoutes = require("./routes/edupointsRoutes");
 
@@ -25,7 +24,6 @@ app.get("/", (_, res) => success(res, { service: "EduBridge API", status: "runni
 app.use("/users", userRoutes);
 app.use("/tasks", taskRoutes);
 app.use("/submissions", submissionRoutes);
-app.use("/files", fileRoutes);
 app.use("/portfolio", portfolioRoutes);
 app.use("/edupoints", edupointsRoutes);
 
