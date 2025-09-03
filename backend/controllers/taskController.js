@@ -123,7 +123,7 @@ const getTaskById = async (req, res) => {
         users!tasks_posted_by_fkey(name, email)
       `
       )
-      .eq("task_id", id)
+      .eq("posted_by", id)
       .single();
 
     if (taskError) throw taskError;
