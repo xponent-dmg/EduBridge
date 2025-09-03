@@ -33,8 +33,8 @@ async function storeSubmissionFile(submissionId, file) {
     .insert([
       {
         submission_id: submissionId,
-        file_path: objectPath,
-        file_url: publicUrl,
+        object_path: objectPath,
+        file_path: publicUrl,
         file_type: fileType,
       },
     ])
@@ -98,7 +98,7 @@ const getSubmissionById = async (req, res) => {
         `
         *,
         users!submissions_user_id_fkey(name, email),
-        tasks(title, description, company_id)
+        tasks(title, description, posted_by)
       `
       )
       .eq("submission_id", id)
@@ -116,7 +116,7 @@ const updateSubmissionStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, feedback, grade } = req.body;
-    if (!["approved", "rejected", "pending"].includes(status)) {
+    if (!["accepted", "rejected", "pending"].includes(status)) {
       return error(res, "invalid status");
     }
 
