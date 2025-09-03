@@ -13,13 +13,21 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Helper functions
+function success(res, data) {
+  return res.status(200).json({ success: true, data });
+}
+
+// Health check endpoint
+app.get("/", (_, res) => success(res, { service: "EduBridge API", status: "running" }));
+
 // Routes
-app.use("/api/users", userRoutes);
-app.use("/api/tasks", taskRoutes);
-app.use("/api/submissions", submissionRoutes);
-app.use("/api/files", fileRoutes);
-app.use("/api/portfolio", portfolioRoutes);
-app.use("/api/edupoints", edupointsRoutes);
+app.use("/users", userRoutes);
+app.use("/tasks", taskRoutes);
+app.use("/submissions", submissionRoutes);
+app.use("/files", fileRoutes);
+app.use("/portfolio", portfolioRoutes);
+app.use("/edupoints", edupointsRoutes);
 
 const PORT = process.env.PORT || 5050;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`EduBridge API running on port ${PORT}`));
