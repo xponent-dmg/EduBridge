@@ -131,7 +131,7 @@ const getTaskById = async (req, res) => {
     const { data: domainRows, error: domainsError } = await supabase
       .from("task_domains")
       .select("domain")
-      .eq("task_id", id);
+      .eq("posted_by", id);
     if (domainsError) throw domainsError;
     const domains = (domainRows || []).map((r) => r.domain);
 
