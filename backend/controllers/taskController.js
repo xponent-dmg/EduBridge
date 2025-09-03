@@ -12,18 +12,18 @@ function error(res, msg, code = 400) {
 // Create task (only company users can create tasks)
 const createTask = async (req, res) => {
   try {
-    const { company_id, title, description, domains, effort_hours, expiry_date } = req.body;
-    if (!company_id || !title) return error(res, "company_id and title are required");
+    const { posted_by, title, description, domains, effort_hours, expiry_date } = req.body;
+    if (!posted_by || !title) return error(res, "posted_by and title are required");
 
     if (domains !== undefined && !Array.isArray(domains)) {
       return error(res, "domains must be an array if provided");
     }
 
-    // Verify that company_id is a valid company user
+    // Verify that posted_by is a valid company user
     const { data: company, error: companyError } = await supabase
       .from("users")
       .select("role")
-      .eq("user_id", company_id)
+      .eq("user_id", posted_by)
       .single();
 
     if (companyError) throw companyError;
@@ -34,7 +34,7 @@ const createTask = async (req, res) => {
     // Create the task without domain column; domains stored separately
     const { data: task, error: taskError } = await supabase
       .from("tasks")
-      .insert([{ company_id, title, description, effort_hours, expiry_date }])
+      .insert([{ posted_by, title, description, effort_hours, expiry_date }])
       .select()
       .single();
 
@@ -74,8 +74,8 @@ const getTasks = async (req, res) => {
         effort_hours,
         expiry_date,
         created_at,
-        company_id,
-        users!tasks_company_id_fkey(name, email)
+        posted_by,
+        users!tasks_posted_by_fkey(name, email)
       `
       )
       .order("created_at", { ascending: false });
@@ -119,8 +119,8 @@ const getTaskById = async (req, res) => {
         effort_hours,
         expiry_date,
         created_at,
-        company_id,
-        users!tasks_company_id_fkey(name, email)
+        posted_by,
+        users!tasks_posted_by_fkey(name, email)
       `
       )
       .eq("task_id", id)
