@@ -1,57 +1,115 @@
 const supabase = require("../config/supabaseClient");
+const logger = require("../utils/logger");
 
 // Helper functions
 function success(res, data) {
+  logger.debug("Sending success response", {
+    dataType: typeof data,
+    dataKeys: data ? Object.keys(data) : null,
+  });
   return res.status(200).json({ success: true, data });
 }
 
 function error(res, msg, code = 400) {
+  logger.warn("Sending error response", { message: msg, statusCode: code });
   return res.status(code).json({ success: false, error: msg });
 }
 
 // Internal: store an uploaded file for a submission and persist its DB record
 async function storeSubmissionFile(submissionId, file) {
-  if (!file) throw new Error("file is required");
+  logger.debug("storeSubmissionFile called", { submissionId, hasFile: !!file });
+
+  if (!file) {
+    logger.error("storeSubmissionFile failed - file is required");
+    throw new Error("file is required");
+  }
+
   const bucket = process.env.SUPABASE_SUBMISSIONS_BUCKET;
-  if (!bucket) throw new Error("SUPABASE_SUBMISSIONS_BUCKET is not configured");
+  if (!bucket) {
+    logger.error("SUPABASE_SUBMISSIONS_BUCKET is not configured");
+    throw new Error("SUPABASE_SUBMISSIONS_BUCKET is not configured");
+  }
 
   const fileBuffer = file.buffer;
   const fileType = file.mimetype || "application/octet-stream";
   const originalName = file.originalname || "upload.bin";
   const objectPath = `submissions/${submissionId}/${Date.now()}_${originalName}`;
 
-  const { data: uploadData, error: uploadError } = await supabase.storage
-    .from(bucket)
-    .upload(objectPath, fileBuffer, { contentType: fileType, upsert: false });
-  if (uploadError) throw uploadError;
+  logger.logFileOperation("UPLOAD_START", {
+    submissionId,
+    bucket,
+    fileName: originalName,
+    fileType,
+    fileSize: fileBuffer?.length,
+  });
 
-  const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(objectPath);
-  const publicUrl = publicUrlData?.publicUrl || null;
+  try {
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from(bucket)
+      .upload(objectPath, fileBuffer, { contentType: fileType, upsert: false });
+    if (uploadError) {
+      logger.error("File upload failed", { submissionId, objectPath, error: uploadError.message });
+      throw uploadError;
+    }
 
-  const { data: fileRecord, error: fileInsertError } = await supabase
-    .from("files")
-    .insert([
-      {
-        submission_id: submissionId,
-        object_path: objectPath,
-        file_path: publicUrl,
-        file_type: fileType,
-      },
-    ])
-    .select()
-    .single();
-  if (fileInsertError) throw fileInsertError;
+    logger.logFileOperation("UPLOAD_SUCCESS", { submissionId, objectPath });
 
-  return fileRecord;
+    const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(objectPath);
+    const publicUrl = publicUrlData?.publicUrl || null;
+
+    logger.debug("Creating file record in database", { submissionId, objectPath });
+    const { data: fileRecord, error: fileInsertError } = await supabase
+      .from("files")
+      .insert([
+        {
+          submission_id: submissionId,
+          object_path: objectPath,
+          file_path: publicUrl,
+          file_type: fileType,
+        },
+      ])
+      .select()
+      .single();
+    if (fileInsertError) {
+      logger.error("Failed to create file record", {
+        submissionId,
+        error: fileInsertError.message,
+      });
+      throw fileInsertError;
+    }
+
+    logger.logFileOperation("FILE_RECORD_CREATED", { submissionId, fileId: fileRecord.file_id });
+    return fileRecord;
+  } catch (error) {
+    logger.error("storeSubmissionFile error", { submissionId, error: error.message });
+    throw error;
+  }
 }
 
 // Create submission
 const createSubmission = async (req, res) => {
+  logger.debug("createSubmission called", {
+    bodyKeys: Object.keys(req.body),
+    hasTaskId: !!req.body.task_id,
+    hasUserId: !!req.body.user_id,
+    hasFile: !!req.file,
+  });
+
   try {
     const { task_id, user_id } = req.body;
-    if (!task_id || !user_id) return error(res, "task_id and user_id are required");
-    if (!req.file) return error(res, "file is required");
+    if (!task_id || !user_id) {
+      logger.warn("createSubmission failed - Missing required fields", {
+        hasTaskId: !!task_id,
+        hasUserId: !!user_id,
+      });
+      return error(res, "task_id and user_id are required");
+    }
+    if (!req.file) {
+      logger.warn("createSubmission failed - No file provided");
+      return error(res, "file is required");
+    }
 
+    logger.debug("Verifying student exists and is a student", { userId: user_id });
     // Verify student exists and is a student
     const { data: student, error: studentError } = await supabase
       .from("users")
@@ -59,11 +117,19 @@ const createSubmission = async (req, res) => {
       .eq("user_id", user_id)
       .single();
 
-    if (studentError) throw studentError;
+    if (studentError) {
+      logger.error("Failed to verify student", { userId: user_id, error: studentError.message });
+      throw studentError;
+    }
     if (student.role !== "student") {
+      logger.warn("createSubmission failed - User not student", {
+        userId: user_id,
+        role: student.role,
+      });
       return error(res, "Only students can create submissions", 403);
     }
 
+    logger.debug("Verifying task exists", { taskId: task_id });
     // Verify task exists
     const { data: task, error: taskError } = await supabase
       .from("tasks")
@@ -71,27 +137,52 @@ const createSubmission = async (req, res) => {
       .eq("task_id", task_id)
       .single();
 
-    if (taskError) throw taskError;
+    if (taskError) {
+      logger.error("Failed to verify task", { taskId: task_id, error: taskError.message });
+      throw taskError;
+    }
 
+    logger.debug("Creating submission record", { taskId: task_id, userId: user_id });
     const { data, error: dbError } = await supabase
       .from("submissions")
       .insert([{ task_id, user_id, status: "pending" }])
       .select()
       .single();
 
-    if (dbError) throw dbError;
+    if (dbError) {
+      logger.error("Failed to create submission", {
+        taskId: task_id,
+        userId: user_id,
+        error: dbError.message,
+      });
+      throw dbError;
+    }
+
+    logger.debug("Storing uploaded file", { submissionId: data.submission_id });
     // Store the uploaded file and persist its record with public URL
     const fileRecord = await storeSubmissionFile(data.submission_id, req.file);
+
+    logger.info("Submission created successfully", {
+      submissionId: data.submission_id,
+      taskId: task_id,
+      userId: user_id,
+      fileId: fileRecord.file_id,
+    });
+
     success(res, { submission: data, file: fileRecord });
   } catch (e) {
+    logger.error("createSubmission error", { error: e.message, stack: e.stack });
     error(res, e.message, 500);
   }
 };
 
 // Get submission by ID
 const getSubmissionById = async (req, res) => {
+  const { id } = req.params;
+  logger.debug("getSubmissionById called", { submissionId: id });
+
   try {
-    const { id } = req.params;
+    logger.debug("Fetching submission by ID", { submissionId: id });
     const { data, error: dbError } = await supabase
       .from("submissions")
       .select(
@@ -104,22 +195,40 @@ const getSubmissionById = async (req, res) => {
       .eq("submission_id", id)
       .single();
 
-    if (dbError) throw dbError;
+    if (dbError) {
+      logger.error("Failed to fetch submission", { submissionId: id, error: dbError.message });
+      throw dbError;
+    }
+
+    logger.debug("getSubmissionById completed successfully", { submissionId: id });
     success(res, data);
   } catch (e) {
+    logger.error("getSubmissionById error", { submissionId: id, error: e.message, stack: e.stack });
     error(res, e.message, 500);
   }
 };
 
 // Update submission status + grade + feedback
 const updateSubmissionStatus = async (req, res) => {
+  const { id } = req.params;
+  const { status, feedback, grade } = req.body;
+  logger.debug("updateSubmissionStatus called", {
+    submissionId: id,
+    status,
+    hasFeedback: !!feedback,
+    hasGrade: !!grade,
+  });
+
   try {
-    const { id } = req.params;
-    const { status, feedback, grade } = req.body;
     if (!["accepted", "rejected", "pending"].includes(status)) {
+      logger.warn("updateSubmissionStatus failed - invalid status", {
+        status,
+        validStatuses: ["accepted", "rejected", "pending"],
+      });
       return error(res, "invalid status");
     }
 
+    logger.debug("Updating submission status", { submissionId: id, status, grade });
     // 1) Update submission
     const { data: sub, error: updErr } = await supabase
       .from("submissions")
@@ -127,13 +236,21 @@ const updateSubmissionStatus = async (req, res) => {
       .eq("submission_id", id)
       .select()
       .single();
-    if (updErr) throw updErr;
+    if (updErr) {
+      logger.error("Failed to update submission", { submissionId: id, error: updErr.message });
+      throw updErr;
+    }
 
     if (status !== "accepted") {
+      logger.debug("Submission not accepted, returning without portfolio/EduPoints", {
+        submissionId: id,
+        status,
+      });
       return success(res, { updated: sub, portfolio: null, edupoints: null });
     }
 
     // 2) On approve → add to portfolio_entries (if not exists)
+    logger.debug("Checking for existing portfolio entry", { submissionId: id });
     const { data: existing } = await supabase
       .from("portfolio_entries")
       .select("entry_id")
@@ -142,34 +259,63 @@ const updateSubmissionStatus = async (req, res) => {
 
     let portfolioEntry = existing;
     if (!existing) {
+      logger.debug("Creating portfolio entry", { submissionId: id });
       const { data: insPE, error: peErr } = await supabase
         .from("portfolio_entries")
         .insert([{ submission_id: id, verified: true }])
         .select()
         .single();
-      if (peErr) throw peErr;
+      if (peErr) {
+        logger.error("Failed to create portfolio entry", {
+          submissionId: id,
+          error: peErr.message,
+        });
+        throw peErr;
+      }
       portfolioEntry = insPE;
+      logger.debug("Portfolio entry created", { portfolioEntryId: portfolioEntry.entry_id });
+    } else {
+      logger.debug("Portfolio entry already exists", { portfolioEntryId: existing.entry_id });
     }
 
     // 3) Award EduPoints to the student (simple rule: 100 points)
     const user_id = sub.user_id;
+    logger.debug("Awarding EduPoints to student", { userId: user_id, amount: 100 });
     const { data: edp, error: epErr } = await supabase
       .from("edupoints")
       .insert([{ user_id: user_id, amount: 100, tx_type: "award" }])
       .select()
       .single();
-    if (epErr) throw epErr;
+    if (epErr) {
+      logger.error("Failed to award EduPoints", { userId: user_id, error: epErr.message });
+      throw epErr;
+    }
+
+    logger.info("Submission approved successfully", {
+      submissionId: id,
+      userId: user_id,
+      portfolioEntryId: portfolioEntry?.entry_id,
+      edupointsId: edp.tx_id,
+    });
 
     success(res, { updated: sub, portfolio: portfolioEntry, edupoints: edp });
   } catch (e) {
+    logger.error("updateSubmissionStatus error", {
+      submissionId: id,
+      error: e.message,
+      stack: e.stack,
+    });
     error(res, e.message, 500);
   }
 };
 
 // Get submissions for a task
 const getSubmissionsByTask = async (req, res) => {
+  const { id } = req.params;
+  logger.debug("getSubmissionsByTask called", { taskId: id });
+
   try {
-    const { id } = req.params;
+    logger.debug("Fetching submissions for task", { taskId: id });
     const { data, error: dbError } = await supabase
       .from("submissions")
       .select(
@@ -181,54 +327,102 @@ const getSubmissionsByTask = async (req, res) => {
       .eq("task_id", id)
       .order("submit_time", { ascending: false });
 
-    if (dbError) throw dbError;
+    if (dbError) {
+      logger.error("Failed to fetch submissions for task", { taskId: id, error: dbError.message });
+      throw dbError;
+    }
+
     // Shape submit_time -> submitted_at for frontend
     const shaped = (data || []).map((s) => ({ ...s, submitted_at: s.submit_time }));
+    logger.debug("getSubmissionsByTask completed successfully", {
+      taskId: id,
+      submissionsCount: shaped.length,
+    });
+
     success(res, shaped);
   } catch (e) {
+    logger.error("getSubmissionsByTask error", { taskId: id, error: e.message, stack: e.stack });
     error(res, e.message, 500);
   }
 };
 
 const getFilesForSubmission = async (req, res) => {
+  const { id } = req.params;
+  logger.debug("getFilesForSubmission called", { submissionId: id });
+
   try {
-    const { id } = req.params;
+    logger.debug("Fetching files for submission", { submissionId: id });
     const { data: files, error: dbError } = await supabase
       .from("files")
       .select("*")
       .eq("submission_id", id);
 
-    if (dbError) throw dbError;
+    if (dbError) {
+      logger.error("Failed to fetch files for submission", {
+        submissionId: id,
+        error: dbError.message,
+      });
+      throw dbError;
+    }
+
+    logger.debug("getFilesForSubmission completed successfully", {
+      submissionId: id,
+      filesCount: (files || []).length,
+    });
     success(res, files);
   } catch (e) {
+    logger.error("getFilesForSubmission error", {
+      submissionId: id,
+      error: e.message,
+      stack: e.stack,
+    });
     error(res, e.message, 500);
   }
 };
 
 // Get submissions for a user
 const getSubmissionsByUser = async (req, res) => {
+  const { id } = req.params;
+  logger.debug("getSubmissionsByUser called", { userId: id });
+
   try {
-    const { id } = req.params;
+    logger.debug("Fetching submissions for user", { userId: id });
     const { data, error: dbError } = await supabase
       .from("submissions")
       .select("*")
       .eq("user_id", id)
       .order("submit_time", { ascending: false });
 
-    if (dbError) throw dbError;
+    if (dbError) {
+      logger.error("Failed to fetch submissions for user", { userId: id, error: dbError.message });
+      throw dbError;
+    }
+
     const shaped = (data || []).map((s) => ({ ...s, submitted_at: s.submit_time }));
+    logger.debug("getSubmissionsByUser completed successfully", {
+      userId: id,
+      submissionsCount: shaped.length,
+    });
+
     success(res, shaped);
   } catch (e) {
+    logger.error("getSubmissionsByUser error", { userId: id, error: e.message, stack: e.stack });
     error(res, e.message, 500);
   }
 };
 
 // Update only grade and feedback for a submission
 const updateSubmissionGrade = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { grade, feedback } = req.body;
+  const { id } = req.params;
+  const { grade, feedback } = req.body;
+  logger.debug("updateSubmissionGrade called", {
+    submissionId: id,
+    hasGrade: !!grade,
+    hasFeedback: !!feedback,
+  });
 
+  try {
+    logger.debug("Updating submission grade and feedback", { submissionId: id, grade, feedback });
     const { data: sub, error: updErr } = await supabase
       .from("submissions")
       .update({ grade, feedback })
@@ -236,9 +430,22 @@ const updateSubmissionGrade = async (req, res) => {
       .select()
       .single();
 
-    if (updErr) throw updErr;
+    if (updErr) {
+      logger.error("Failed to update submission grade", {
+        submissionId: id,
+        error: updErr.message,
+      });
+      throw updErr;
+    }
+
+    logger.debug("updateSubmissionGrade completed successfully", { submissionId: id });
     success(res, { updated: sub });
   } catch (e) {
+    logger.error("updateSubmissionGrade error", {
+      submissionId: id,
+      error: e.message,
+      stack: e.stack,
+    });
     error(res, e.message, 500);
   }
 };
