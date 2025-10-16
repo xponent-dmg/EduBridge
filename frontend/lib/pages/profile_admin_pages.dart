@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+  const ProfilePage({super.key, this.userId});
+
+  final dynamic userId;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -65,7 +67,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final userId = ModalRoute.of(context)?.settings.arguments;
+    final userId = widget.userId ?? ModalRoute.of(context)?.settings.arguments;
     return Scaffold(
       appBar: AppBar(title: const Text('Profile')),
       body: loading
@@ -83,7 +85,10 @@ class _ProfilePageState extends State<ProfilePage> {
                     decoration: const InputDecoration(labelText: 'Skills (comma separated)'),
                   ),
                   const SizedBox(height: 8),
-                  FilledButton(onPressed: () => _saveSkills(userId), child: const Text('Save Skills')),
+                  FilledButton(
+                    onPressed: () => _saveSkills(userId ?? me?['user_id']),
+                    child: const Text('Save Skills'),
+                  ),
                 ],
               ),
             ),

@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-
-import '../../theme/app_theme.dart';
-
 class StatsCard extends StatelessWidget {
   final String title;
   final String value;

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/task_provider.dart';
-import '../../theme/app_theme.dart';
 
 class TaskFilterBar extends StatelessWidget {
   const TaskFilterBar({super.key});

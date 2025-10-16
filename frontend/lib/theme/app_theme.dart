@@ -47,7 +47,7 @@ class AppTheme {
         elevation: 0,
         centerTitle: true,
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: cardLight,
         elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -128,7 +128,7 @@ class AppTheme {
       ),
       scaffoldBackgroundColor: backgroundDark,
       appBarTheme: AppBarTheme(backgroundColor: cardDark, foregroundColor: textLight, elevation: 0, centerTitle: true),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: cardDark,
         elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -188,7 +188,7 @@ class AppTheme {
         titleSmall: TextStyle(fontSize: 14, fontWeight: FontWeight.normal, color: textLight),
         bodyLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.normal, color: textLight),
         bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.normal, color: textLight),
-        bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Colors.grey.shade400),
+        bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Colors.grey),
       ),
     );
   }

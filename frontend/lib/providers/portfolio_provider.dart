@@ -54,23 +54,24 @@ class PortfolioProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> removeFromPortfolio(String portfolioId, String userId) async {
-    try {
-      _status = PortfolioLoadStatus.loading;
-      notifyListeners();
+//TODO: Uncomment this when the API is implemented
+  // Future<bool> removeFromPortfolio(String portfolioId, String userId) async {
+  //   try {
+  //     _status = PortfolioLoadStatus.loading;
+  //     notifyListeners();
 
-      await _apiClient.delete('/portfolio/$portfolioId');
+  //     await _apiClient.delete('/portfolio/$portfolioId');
 
-      // Refresh portfolio after removing an entry
-      await loadPortfolio(userId);
-      return true;
-    } catch (e) {
-      _status = PortfolioLoadStatus.error;
-      _errorMessage = e.toString();
-      notifyListeners();
-      return false;
-    }
-  }
+  //     // Refresh portfolio after removing an entry
+  //     await loadPortfolio(userId);
+  //     return true;
+  //   } catch (e) {
+  //     _status = PortfolioLoadStatus.error;
+  //     _errorMessage = e.toString();
+  //     notifyListeners();
+  //     return false;
+  //   }
+  // }
 
   void clearError() {
     _errorMessage = null;
