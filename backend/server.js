@@ -25,8 +25,8 @@ logger.debug("CORS middleware enabled");
 app.use(express.json());
 logger.debug("JSON body parser middleware enabled");
 
-// Request logging middleware
-app.use(logger.logRequest);
+// Request logging middleware (bind to preserve 'this')
+app.use((req, res, next) => logger.logRequest(req, res, next));
 
 // Helper functions
 function success(res, data) {
