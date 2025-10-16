@@ -57,7 +57,6 @@ class SubmissionProvider extends ChangeNotifier {
 
   Future<bool> uploadSubmission({
     required String taskId,
-    required String userId,
     List<int>? fileBytes,
     String? filePath,
     required String fileName,
@@ -75,7 +74,6 @@ class SubmissionProvider extends ChangeNotifier {
       }
 
       request.fields['task_id'] = taskId;
-      request.fields['user_id'] = userId;
 
       // Add file to request (prefer bytes; fallback to path)
       if (fileBytes != null) {

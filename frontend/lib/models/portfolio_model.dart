@@ -25,7 +25,7 @@ class PortfolioEntryModel {
       userId: json['user_id'] ?? '',
       submission: submissionData != null
           ? SubmissionModel.fromJson(submissionData)
-          : SubmissionModel(submissionId: '', taskId: '', userId: json['user_id'] ?? ''),
+          : SubmissionModel(submissionId: '', taskId: ''),
       task: taskData != null
           ? TaskModel.fromJson(taskData)
           : TaskModel(taskId: '', title: '', description: '', domains: [], effortHours: 0, postedBy: ''),

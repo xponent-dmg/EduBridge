@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
@@ -117,7 +118,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                         style: TextStyle(fontSize: 16, color: Colors.white),
                       ),
                       const SizedBox(height: 48),
-                      const CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+                      AnimatedLoadingIndicator(),
                     ],
                   ),
                 ),
@@ -126,6 +127,102 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
           ),
         ),
       ),
+    );
+  }
+}
+
+// Animated loading indicator with bouncing dots
+class AnimatedLoadingIndicator extends StatefulWidget {
+  const AnimatedLoadingIndicator({super.key});
+  @override
+  State<AnimatedLoadingIndicator> createState() => _AnimatedLoadingIndicatorState();
+}
+
+class _AnimatedLoadingIndicatorState extends State<AnimatedLoadingIndicator> with TickerProviderStateMixin {
+  late List<AnimationController> _controllers;
+  late List<Animation<double>> _animations;
+  late Timer _timer;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Initialize timer for cleanup
+    _timer = Timer(const Duration(seconds: 1), () {});
+
+    // Create 3 controllers for 3 dots
+    _controllers = List.generate(3, (index) {
+      return AnimationController(vsync: this, duration: const Duration(milliseconds: 600))..repeat(reverse: true);
+    });
+
+    // Create animations with staggered delays
+    _animations = List.generate(3, (index) {
+      return Tween<double>(
+        begin: 0.0,
+        end: 1.0,
+      ).animate(CurvedAnimation(parent: _controllers[index], curve: Curves.easeInOut));
+    });
+
+    // Start animations with staggered timing
+    _startStaggeredAnimation();
+  }
+
+  void _startStaggeredAnimation() {
+    for (int i = 0; i < _controllers.length; i++) {
+      Future.delayed(Duration(milliseconds: i * 200), () {
+        if (mounted) {
+          _controllers[i].forward();
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    for (var controller in _controllers) {
+      controller.dispose();
+    }
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(3, (index) {
+        return AnimatedBuilder(
+          animation: _animations[index],
+          builder: (context, child) {
+            return Transform.translate(
+              offset: Offset(0, -20 * _animations[index].value),
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.3 + (0.7 * _animations[index].value)),
+                      Colors.white.withValues(alpha: 0.8 + (0.2 * _animations[index].value)),
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.white.withValues(alpha: 0.3 * _animations[index].value),
+                      blurRadius: 8,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      }),
     );
   }
 }

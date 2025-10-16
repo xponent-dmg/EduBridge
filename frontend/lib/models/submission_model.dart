@@ -1,7 +1,6 @@
 class SubmissionModel {
   final String submissionId;
   final String taskId;
-  final String userId;
   final String? fileUrl;
   final String? feedback;
   final int? grade;
@@ -10,7 +9,6 @@ class SubmissionModel {
   SubmissionModel({
     required this.submissionId,
     required this.taskId,
-    required this.userId,
     this.fileUrl,
     this.feedback,
     this.grade,
@@ -21,7 +19,6 @@ class SubmissionModel {
     return SubmissionModel(
       submissionId: json['submission_id'] ?? '',
       taskId: json['task_id'] ?? '',
-      userId: json['user_id'] ?? '',
       fileUrl: json['file_url'],
       feedback: json['feedback'],
       grade: json['grade'],
@@ -33,7 +30,6 @@ class SubmissionModel {
     return {
       'submission_id': submissionId,
       'task_id': taskId,
-      'user_id': userId,
       'file_url': fileUrl,
       'feedback': feedback,
       'grade': grade,
@@ -44,7 +40,6 @@ class SubmissionModel {
   SubmissionModel copyWith({
     String? submissionId,
     String? taskId,
-    String? userId,
     String? fileUrl,
     String? feedback,
     int? grade,
@@ -53,7 +48,6 @@ class SubmissionModel {
     return SubmissionModel(
       submissionId: submissionId ?? this.submissionId,
       taskId: taskId ?? this.taskId,
-      userId: userId ?? this.userId,
       fileUrl: fileUrl ?? this.fileUrl,
       feedback: feedback ?? this.feedback,
       grade: grade ?? this.grade,

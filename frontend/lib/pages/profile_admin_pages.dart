@@ -83,10 +83,52 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _logout() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    await authProvider.signOut();
-    if (!mounted) return;
-    Navigator.pushNamedAndRemoveUntil(context, '/auth', (_) => false);
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.error.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.logout, color: AppTheme.error, size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Text('Sign Out'),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to sign out?\n\nYou will need to log in again to access your account.',
+          style: TextStyle(fontSize: 15),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.signOut();
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(context, '/auth', (_) => false);
+    }
   }
 
   @override
@@ -152,11 +194,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
                   const SizedBox(height: 24),
 
-                  // Account Actions (for own profile only)
-                  if (isOwnProfile) ...[_buildAccountActions(), const SizedBox(height: 24)],
+                  // Settings Section (for own profile only)
+                  if (isOwnProfile) ...[_buildSettingsSection(), const SizedBox(height: 24)],
 
-                  // User Info
-                  _buildUserInfo(),
+                  // Sign Out Button (at bottom, for own profile only)
+                  if (isOwnProfile) _buildSignOutButton(),
                 ],
               ),
       ),
@@ -473,7 +515,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildAccountActions() {
+  Widget _buildSettingsSection() {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -482,13 +524,45 @@ class _ProfilePageState extends State<ProfilePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Account', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            Text('Settings', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.logout, color: AppTheme.error),
-              title: const Text('Sign Out'),
-              subtitle: const Text('Sign out of your account'),
-              onTap: _logout,
+            SwitchListTile(
+              title: const Text('Push Notifications'),
+              subtitle: const Text('Receive notifications about tasks and submissions'),
+              value: true, // This would be connected to a provider in a real implementation
+              onChanged: (value) {
+                // Implement notification toggle functionality
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('Notifications ${value ? 'enabled' : 'disabled'}')));
+              },
+              secondary: const Icon(Icons.notifications_outlined),
+            ),
+            const Divider(),
+            SwitchListTile(
+              title: const Text('Dark Mode'),
+              subtitle: const Text('Switch between light and dark theme'),
+              value: false, // This would be connected to a theme provider
+              onChanged: (value) {
+                // Implement theme toggle functionality
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('Dark mode ${value ? 'enabled' : 'disabled'}')));
+              },
+              secondary: const Icon(Icons.dark_mode_outlined),
+            ),
+            const Divider(),
+            SwitchListTile(
+              title: const Text('Email Notifications'),
+              subtitle: const Text('Receive email updates about your account'),
+              value: true, // This would be connected to a provider
+              onChanged: (value) {
+                // Implement email notification toggle functionality
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('Email notifications ${value ? 'enabled' : 'disabled'}')));
+              },
+              secondary: const Icon(Icons.email_outlined),
             ),
           ],
         ),
@@ -496,48 +570,26 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildUserInfo() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Information', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            _buildInfoRow('User ID', user?['user_id'] ?? ''),
-            _buildInfoRow('Email', user?['email'] ?? ''),
-            _buildInfoRow('Role', _formatRole(user?['role'] ?? 'student')),
-            _buildInfoRow('Member Since', _formatDate(user?['created_at'])),
-          ],
+  Widget _buildSignOutButton() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: ElevatedButton.icon(
+        icon: const Icon(Icons.logout, color: Colors.white),
+        label: const Text('Sign Out', style: TextStyle(color: Colors.white)),
+        onPressed: _logout,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppTheme.error,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          minimumSize: const Size(double.infinity, 56),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
-              ),
-            ),
-          ),
-          Expanded(child: Text(value)),
-        ],
-      ),
-    );
-  }
+  // User info section removed as requested
 
   Widget _StatItem({required String title, required String value, required IconData icon, required Color color}) {
     return Column(
@@ -562,15 +614,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return role[0].toUpperCase() + role.substring(1);
   }
 
-  String _formatDate(dynamic dateValue) {
-    if (dateValue == null) return 'Unknown';
-    try {
-      final date = DateTime.parse(dateValue.toString());
-      return '${date.day}/${date.month}/${date.year}';
-    } catch (e) {
-      return 'Unknown';
-    }
-  }
+  // Removed unused _formatDate method
 
   double? _calculateAverageGrade() {
     final portfolioProvider = Provider.of<PortfolioProvider>(context);

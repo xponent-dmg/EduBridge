@@ -39,19 +39,26 @@ class TaskFilterBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              IconButton(
+              PopupMenuButton<int>(
                 icon: const Icon(Icons.filter_list),
-                onPressed: () => _showFilterDialog(context),
-                style: IconButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                  foregroundColor: theme.colorScheme.primary,
-                ),
+                onSelected: (value) {
+                  if (value == 1) {
+                    _showFilterDialog(context);
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem<int>(value: 0, enabled: false, child: _SortMenu()),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem<int>(value: 1, child: Text('More Filters...')),
+                ],
               ),
             ],
           ),
           if (taskProvider.domainFilter.isNotEmpty ||
               taskProvider.effortFilter.start > 0 ||
-              taskProvider.effortFilter.end < 80) ...[
+              taskProvider.effortFilter.end < 80 ||
+              taskProvider.hideExpired ||
+              taskProvider.sort != TaskSort.expirySoon) ...[
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -67,6 +74,13 @@ class TaskFilterBar extends StatelessWidget {
                     label:
                         'Effort: ${taskProvider.effortFilter.start.toInt()}-${taskProvider.effortFilter.end.toInt()} hrs',
                     onRemove: () => taskProvider.setEffortFilter(const RangeValues(0, 80)),
+                  ),
+                if (taskProvider.hideExpired)
+                  _FilterChip(label: 'Hide expired', onRemove: () => taskProvider.setHideExpired(false)),
+                if (taskProvider.sort != TaskSort.expirySoon)
+                  _FilterChip(
+                    label: 'Sort: ' + _formatSort(taskProvider.sort),
+                    onRemove: () => taskProvider.setSort(TaskSort.expirySoon),
                   ),
                 TextButton.icon(
                   onPressed: () => taskProvider.clearFilters(),
@@ -131,6 +145,76 @@ class TaskFilterBar extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+
+  String _formatSort(TaskSort sort) {
+    switch (sort) {
+      case TaskSort.newest:
+        return 'Newest';
+      case TaskSort.oldest:
+        return 'Oldest';
+      case TaskSort.expiryLatest:
+        return 'Expiry latest';
+      case TaskSort.expirySoon:
+        return 'Expiry soon';
+    }
+  }
+}
+
+class _SortMenu extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final taskProvider = Provider.of<TaskProvider>(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 4),
+          child: Text('Sort by', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+        RadioListTile<TaskSort>(
+          value: TaskSort.expirySoon,
+          groupValue: taskProvider.sort,
+          onChanged: (v) => taskProvider.setSort(v!),
+          title: const Text('Expiry soonest'),
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+        ),
+        RadioListTile<TaskSort>(
+          value: TaskSort.expiryLatest,
+          groupValue: taskProvider.sort,
+          onChanged: (v) => taskProvider.setSort(v!),
+          title: const Text('Expiry latest'),
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+        ),
+        RadioListTile<TaskSort>(
+          value: TaskSort.newest,
+          groupValue: taskProvider.sort,
+          onChanged: (v) => taskProvider.setSort(v!),
+          title: const Text('Newest'),
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+        ),
+        RadioListTile<TaskSort>(
+          value: TaskSort.oldest,
+          groupValue: taskProvider.sort,
+          onChanged: (v) => taskProvider.setSort(v!),
+          title: const Text('Oldest'),
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+        ),
+        const Divider(),
+        SwitchListTile(
+          value: taskProvider.hideExpired,
+          onChanged: (v) => taskProvider.setHideExpired(v),
+          title: const Text('Hide expired tasks'),
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+        ),
+      ],
     );
   }
 }

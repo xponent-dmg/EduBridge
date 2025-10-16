@@ -43,7 +43,6 @@ class _MainNavigatorState extends State<MainNavigator> {
           const TaskListPage(),
           const MySubmissionsPage(),
           PortfolioPage(userId: userId),
-          ProfilePage(userId: userId),
         ]);
       }
       _lastUserId = userId;
@@ -53,7 +52,6 @@ class _MainNavigatorState extends State<MainNavigator> {
         _cachedPages[2] = ProfilePage(userId: userId);
       } else {
         _cachedPages[3] = PortfolioPage(userId: userId);
-        _cachedPages[4] = ProfilePage(userId: userId);
       }
       _lastUserId = userId;
     }
@@ -99,7 +97,6 @@ class _MainNavigatorState extends State<MainNavigator> {
               BottomNavigationBarItem(icon: Icon(Icons.task_alt), label: 'Tasks'),
               BottomNavigationBarItem(icon: Icon(Icons.upload_file), label: 'Submissions'),
               BottomNavigationBarItem(icon: Icon(Icons.work), label: 'Portfolio'),
-              BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
             ],
     );
   }

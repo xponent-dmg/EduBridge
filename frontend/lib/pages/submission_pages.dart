@@ -67,7 +67,6 @@ class _CreateSubmissionPageState extends State<CreateSubmissionPage> {
 
       final success = await submissionProvider.uploadSubmission(
         taskId: widget.taskId.toString(),
-        userId: userId,
         fileBytes: selectedFile!.bytes?.toList(),
         filePath: selectedFile!.path,
         fileName: selectedFile!.name,
@@ -977,17 +976,6 @@ class _ReviewSubmissionsPageState extends State<ReviewSubmissionsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(Icons.person, size: 16, color: Theme.of(context).hintColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Student ID: ${submission.userId.substring(0, 8)}...',
-                          style: TextStyle(color: Theme.of(context).hintColor),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
                     Row(
                       children: [
                         Icon(Icons.calendar_today, size: 16, color: Theme.of(context).hintColor),

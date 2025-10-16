@@ -3,13 +3,11 @@ import 'package:provider/provider.dart';
 
 import '../models/task_model.dart';
 import '../providers/auth_provider.dart';
-import '../providers/edupoints_provider.dart';
 import '../providers/portfolio_provider.dart';
 import '../providers/submission_provider.dart';
 import '../providers/task_provider.dart';
 import '../providers/user_provider.dart';
 import '../theme/app_theme.dart';
-import '../widgets/dashboard/edupoints_card.dart';
 import '../widgets/dashboard/stats_card.dart';
 import '../widgets/dashboard/task_card.dart';
 import '../widgets/dashboard/welcome_header.dart';
@@ -55,7 +53,13 @@ class _DashboardPageState extends State<DashboardPage> {
         child: ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: [
-            WelcomeHeader(name: user?.name ?? 'Guest', role: role),
+            WelcomeHeader(
+              name: user?.name ?? 'Guest',
+              role: role,
+              onProfileTap: role == 'student'
+                  ? () => Navigator.pushNamed(context, '/profile', arguments: user?.userId)
+                  : null,
+            ),
 
             // Role-specific sections
             if (role == 'student') _buildStudentSection(taskProvider),
@@ -68,10 +72,9 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _buildStudentSection(TaskProvider taskProvider) {
-    final tasks = taskProvider.tasks;
+    final tasks = taskProvider.filteredActiveTasks;
     final submissionProvider = Provider.of<SubmissionProvider>(context);
     final portfolioProvider = Provider.of<PortfolioProvider>(context);
-    final edupointsProvider = Provider.of<EdupointsProvider>(context);
 
     // Calculate quick stats
     final totalSubmissions = submissionProvider.submissions.length;
@@ -144,17 +147,17 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ),
 
-        // EduPoints Card
-        if (edupointsProvider.status == EdupointsLoadStatus.loaded && edupointsProvider.edupoints != null) ...[
-          const SizedBox(height: 24),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: EdupointsCard(
-              balance: edupointsProvider.balance,
-              transactions: edupointsProvider.transactions.take(3).toList(),
-            ),
-          ),
-        ],
+        // // EduPoints Card
+        // if (edupointsProvider.status == EdupointsLoadStatus.loaded && edupointsProvider.edupoints != null) ...[
+        //   const SizedBox(height: 24),
+        //   Padding(
+        //     padding: const EdgeInsets.symmetric(horizontal: 16),
+        //     child: EdupointsCard(
+        //       balance: edupointsProvider.balance,
+        //       transactions: edupointsProvider.transactions.take(3).toList(),
+        //     ),
+        //   ),
+        // ],
 
         // Available Tasks Section
         Padding(
@@ -176,7 +179,7 @@ class _DashboardPageState extends State<DashboardPage> {
         else if (tasks.isEmpty)
           const Padding(
             padding: EdgeInsets.all(24),
-            child: Center(child: Text('No tasks available at the moment')),
+            child: Center(child: Text('No active tasks available at the moment')),
           )
         else
           ListView.builder(
@@ -238,7 +241,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   value: totalSubmissions.toString(),
                   icon: Icons.upload_file,
                   color: AppTheme.secondaryColor,
-                  onTap: () => Navigator.pushNamed(context, '/submissions/review'),
+                  // onTap: () => Navigator.pushNamed(context, '/submissions/review'),
                 ),
               ),
             ],
@@ -257,7 +260,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   value: pendingReviews.toString(),
                   icon: Icons.pending_actions,
                   color: AppTheme.warning,
-                  onTap: () => Navigator.pushNamed(context, '/submissions/review'),
+                  // onTap: () => Navigator.pushNamed(context, '/submissions/review'),
                 ),
               ),
               const SizedBox(width: 16),
@@ -302,21 +305,21 @@ class _DashboardPageState extends State<DashboardPage> {
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () => Navigator.pushNamed(context, '/tasks/create', arguments: companyId),
                   ),
-                  const Divider(),
-                  ListTile(
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppTheme.secondaryColor.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.grading, color: AppTheme.secondaryColor),
-                    ),
-                    title: const Text('Review Submissions'),
-                    subtitle: const Text('Grade and provide feedback'),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () => Navigator.pushNamed(context, '/submissions/review'),
-                  ),
+                  // const Divider(),
+                  // ListTile(
+                  //   leading: Container(
+                  //     padding: const EdgeInsets.all(8),
+                  //     decoration: BoxDecoration(
+                  //       color: AppTheme.secondaryColor.withOpacity(0.1),
+                  //       shape: BoxShape.circle,
+                  //     ),
+                  //     child: const Icon(Icons.grading, color: AppTheme.secondaryColor),
+                  //   ),
+                  //   title: const Text('Review Submissions'),
+                  //   subtitle: const Text('Grade and provide feedback'),
+                  //   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  //   onTap: () => Navigator.pushNamed(context, '/submissions/review'),
+                  // ),
                   const Divider(),
                   ListTile(
                     leading: Container(
