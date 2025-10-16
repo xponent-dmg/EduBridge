@@ -13,10 +13,13 @@ class SubmissionProvider extends ChangeNotifier {
 
   SubmissionLoadStatus _status = SubmissionLoadStatus.initial;
   List<SubmissionModel> _submissions = [];
+  // Aggregated submissions across a company's posted tasks (for company dashboard)
+  List<SubmissionModel> _companySubmissions = [];
   String? _errorMessage;
 
   SubmissionLoadStatus get status => _status;
   List<SubmissionModel> get submissions => _submissions;
+  List<SubmissionModel> get companySubmissions => _companySubmissions;
   String? get errorMessage => _errorMessage;
 
   SubmissionProvider({required ApiClient apiClient}) : _apiClient = apiClient;
@@ -47,6 +50,39 @@ class SubmissionProvider extends ChangeNotifier {
       final List submissionData = res['data'] as List? ?? [];
 
       _submissions = submissionData.map((submission) => SubmissionModel.fromJson(submission)).toList();
+      _status = SubmissionLoadStatus.loaded;
+    } catch (e) {
+      _status = SubmissionLoadStatus.error;
+      _errorMessage = e.toString();
+    }
+    notifyListeners();
+  }
+
+  // Load all submissions across tasks posted by a given company (used on company dashboard)
+  Future<void> loadCompanySubmissions(String companyId) async {
+    try {
+      _status = SubmissionLoadStatus.loading;
+      _errorMessage = null;
+      notifyListeners();
+
+      // 1) Get tasks posted by this company
+      final tasksRes = await _apiClient.get('/tasks/company/$companyId');
+      final List tasksData = tasksRes['data'] as List? ?? [];
+
+      // 2) For each task, fetch its submissions
+      final List<SubmissionModel> aggregated = [];
+      for (final t in tasksData) {
+        final taskId = (t is Map<String, dynamic>) ? (t['task_id'] ?? '') : '';
+        if (taskId is String && taskId.isNotEmpty) {
+          final res = await _apiClient.get('/submissions/task/$taskId');
+          final List submissionData = res['data'] as List? ?? [];
+          aggregated.addAll(submissionData.map((submission) => SubmissionModel.fromJson(submission)));
+        }
+      }
+
+      // 3) Sort newest first and assign
+      aggregated.sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
+      _companySubmissions = aggregated;
       _status = SubmissionLoadStatus.loaded;
     } catch (e) {
       _status = SubmissionLoadStatus.error;

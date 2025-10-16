@@ -149,7 +149,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
     return AppScaffold(
       title: isOwnProfile ? 'My Profile' : 'Profile',
-      currentIndex: role == 'student' ? 4 : 3, // Different index based on role
+      showBottomNav: false,
+      showBackButton: true,
       body: RefreshIndicator(
         onRefresh: _loadUserData,
         child: loading

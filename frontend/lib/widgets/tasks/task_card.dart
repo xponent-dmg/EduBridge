@@ -8,8 +8,19 @@ class TaskCard extends StatelessWidget {
   final TaskModel task;
   final VoidCallback? onTap;
   final bool showCompanyActions;
+  final bool? hasSubmission; // Student has submitted for this task
+  final bool? isPendingReview; // Submission is pending review (no grade yet)
+  final int? submissionGrade; // Grade if reviewed
 
-  const TaskCard({super.key, required this.task, this.onTap, this.showCompanyActions = false});
+  const TaskCard({
+    super.key,
+    required this.task,
+    this.onTap,
+    this.showCompanyActions = false,
+    this.hasSubmission,
+    this.isPendingReview,
+    this.submissionGrade,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -113,6 +124,9 @@ class TaskCard extends StatelessWidget {
                       ),
                     ],
                   ),
+
+                  // Submission status badge for students
+                  if (hasSubmission == true) ...[const SizedBox(height: 12), _buildSubmissionStatusBadge(context)],
                 ],
               ),
             ),
@@ -202,6 +216,64 @@ class TaskCard extends StatelessWidget {
         border: Border.all(color: AppTheme.secondaryColor.withOpacity(0.3)),
       ),
       child: Text(domain, style: TextStyle(fontSize: 12, color: AppTheme.secondaryColor)),
+    );
+  }
+
+  Widget _buildSubmissionStatusBadge(BuildContext context) {
+    final theme = Theme.of(context);
+    final bool isReviewed = submissionGrade != null;
+    final bool pending = isPendingReview == true;
+
+    final Color statusColor;
+    final IconData statusIcon;
+    final String statusText;
+
+    if (isReviewed) {
+      // Reviewed - show grade
+      final grade = submissionGrade!;
+      if (grade >= 80) {
+        statusColor = AppTheme.success;
+        statusIcon = Icons.verified;
+        statusText = 'Reviewed: $grade%';
+      } else if (grade >= 60) {
+        statusColor = Colors.blue;
+        statusIcon = Icons.check_circle;
+        statusText = 'Reviewed: $grade%';
+      } else {
+        statusColor = Colors.orange;
+        statusIcon = Icons.info;
+        statusText = 'Reviewed: $grade%';
+      }
+    } else if (pending) {
+      // Pending review
+      statusColor = AppTheme.warning;
+      statusIcon = Icons.pending_actions;
+      statusText = 'Review Pending';
+    } else {
+      // Submitted but status unknown
+      statusColor = AppTheme.accentColor;
+      statusIcon = Icons.check_circle_outline;
+      statusText = 'Submitted';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: statusColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: statusColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(statusIcon, size: 16, color: statusColor),
+          const SizedBox(width: 8),
+          Text(
+            statusText,
+            style: theme.textTheme.bodySmall?.copyWith(color: statusColor, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
     );
   }
 }

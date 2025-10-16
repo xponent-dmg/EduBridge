@@ -31,9 +31,27 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Future<void> _loadData() async {
     final taskProvider = Provider.of<TaskProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final submissionProvider = Provider.of<SubmissionProvider>(context, listen: false);
+    final portfolioProvider = Provider.of<PortfolioProvider>(context, listen: false);
 
     // Load tasks
-    taskProvider.loadTasks();
+    await taskProvider.loadTasks();
+
+    // Load role-specific data so dashboard counts are accurate
+    final user = authProvider.currentUser;
+    if (user != null) {
+      if (user.role == 'student') {
+        // Student: load own submissions and portfolio entries
+        await Future.wait([
+          submissionProvider.loadUserSubmissions(user.userId),
+          portfolioProvider.loadPortfolio(user.userId),
+        ]);
+      } else if (user.role == 'company') {
+        // Company: aggregate submissions across posted tasks
+        await submissionProvider.loadCompanySubmissions(user.userId);
+      }
+    }
   }
 
   @override
@@ -80,6 +98,16 @@ class _DashboardPageState extends State<DashboardPage> {
     final totalSubmissions = submissionProvider.submissions.length;
     final pendingSubmissions = submissionProvider.submissions.where((s) => s.grade == null).length;
     final approvedSubmissions = submissionProvider.submissions.where((s) => s.grade != null && s.grade! >= 60).length;
+
+    // Build a map of taskId -> submission for quick lookup
+    final Map<String, dynamic> taskSubmissionMap = {};
+    for (final submission in submissionProvider.submissions) {
+      taskSubmissionMap[submission.taskId] = {
+        'hasSubmission': true,
+        'isPending': submission.grade == null,
+        'grade': submission.grade,
+      };
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -189,8 +217,12 @@ class _DashboardPageState extends State<DashboardPage> {
             itemCount: tasks.length > 3 ? 3 : tasks.length, // Show fewer tasks to make room for stats
             itemBuilder: (context, index) {
               final task = TaskModel.fromJson(tasks[index].toJson());
+              final submissionInfo = taskSubmissionMap[task.taskId];
               return TaskCard(
                 task: task,
+                hasSubmission: submissionInfo?['hasSubmission'],
+                isPendingReview: submissionInfo?['isPending'],
+                submissionGrade: submissionInfo?['grade'],
                 onTap: () => Navigator.pushNamed(context, '/tasks/detail', arguments: task.taskId),
               );
             },
@@ -205,8 +237,8 @@ class _DashboardPageState extends State<DashboardPage> {
 
     // Calculate stats
     final totalTasks = taskProvider.tasks.where((t) => t.postedBy == companyId).length;
-    final totalSubmissions = submissionProvider.submissions.length;
-    final pendingReviews = submissionProvider.submissions.where((s) => s.grade == null).length;
+    final totalSubmissions = submissionProvider.companySubmissions.length;
+    final pendingReviews = submissionProvider.companySubmissions.where((s) => s.grade == null).length;
     final reviewedSubmissions = totalSubmissions - pendingReviews;
 
     return Column(
@@ -358,7 +390,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
         if (submissionProvider.status == SubmissionLoadStatus.loading)
           const Center(child: CircularProgressIndicator())
-        else if (submissionProvider.submissions.isEmpty)
+        else if (submissionProvider.companySubmissions.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             child: Center(child: Text('No submissions to review yet')),
@@ -372,10 +404,12 @@ class _DashboardPageState extends State<DashboardPage> {
               child: ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: submissionProvider.submissions.length > 3 ? 3 : submissionProvider.submissions.length,
+                itemCount: submissionProvider.companySubmissions.length > 3
+                    ? 3
+                    : submissionProvider.companySubmissions.length,
                 separatorBuilder: (context, index) => const Divider(),
                 itemBuilder: (context, index) {
-                  final submission = submissionProvider.submissions[index];
+                  final submission = submissionProvider.companySubmissions[index];
                   return ListTile(
                     title: Text('Submission #${submission.submissionId.substring(0, 8)}'),
                     subtitle: Text('Submitted: ${_formatDate(submission.submittedAt)}'),

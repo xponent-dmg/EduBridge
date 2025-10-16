@@ -238,11 +238,120 @@ class _MySubmissionsPageState extends State<MySubmissionsPage> {
   @override
   Widget build(BuildContext context) {
     final submissionProvider = Provider.of<SubmissionProvider>(context);
+    final submissions = submissionProvider.submissions;
+    final gradedCount = submissions.where((s) => s.grade != null).length;
+    final pendingCount = submissions.where((s) => s.grade == null).length;
 
     return AppScaffold(
       title: 'My Submissions',
       currentIndex: 2,
-      body: RefreshIndicator(onRefresh: _loadSubmissions, child: _buildContent(submissionProvider)),
+      customAppBar: AppBar(
+        title: const Text('My Submissions'),
+        centerTitle: true,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        actions: [
+          if (submissions.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${submissions.length} total',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Statistics Header
+          if (submissions.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context).colorScheme.primary,
+                    Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildQuickStat(
+                      icon: Icons.assignment_turned_in,
+                      label: 'Graded',
+                      value: gradedCount.toString(),
+                    ),
+                  ),
+                  Container(width: 1, height: 40, color: Colors.white30),
+                  Expanded(
+                    child: _buildQuickStat(
+                      icon: Icons.pending_actions,
+                      label: 'Pending',
+                      value: pendingCount.toString(),
+                    ),
+                  ),
+                  Container(width: 1, height: 40, color: Colors.white30),
+                  Expanded(
+                    child: _buildQuickStat(
+                      icon: Icons.analytics,
+                      label: 'Avg Score',
+                      value: gradedCount > 0
+                          ? '${(submissions.where((s) => s.grade != null).fold<int>(0, (sum, s) => sum + s.grade!) / gradedCount).round()}%'
+                          : '-',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // Submissions List
+          Expanded(
+            child: RefreshIndicator(onRefresh: _loadSubmissions, child: _buildContent(submissionProvider)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickStat({required IconData icon, required String label, required String value}) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: Colors.white, size: 28),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+      ],
     );
   }
 
@@ -335,127 +444,181 @@ class _MySubmissionsPageState extends State<MySubmissionsPage> {
           ),
         );
 
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Column(
-            children: [
-              ListTile(
-                contentPadding: const EdgeInsets.all(16),
-                leading: CircleAvatar(
-                  backgroundColor: hasGrade ? _getGradeColor(submission.grade!) : AppTheme.warning,
-                  child: Icon(hasGrade ? Icons.check_circle : Icons.hourglass_empty, color: Colors.white),
-                ),
-                title: Text(
-                  task.title,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Icons.calendar_today, size: 16, color: Theme.of(context).hintColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Submitted: ${_formatDate(submission.submittedAt)}',
-                          style: TextStyle(color: Theme.of(context).hintColor),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(
-                          hasGrade ? Icons.grade : Icons.pending_actions,
-                          size: 16,
-                          color: Theme.of(context).hintColor,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          hasGrade ? 'Grade: ${submission.grade}%' : 'Status: Pending Review',
-                          style: TextStyle(
-                            color: hasGrade ? _getGradeColor(submission.grade!) : Theme.of(context).hintColor,
-                            fontWeight: hasGrade ? FontWeight.bold : FontWeight.normal,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (hasFeedback) ...[
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.comment, size: 16, color: Theme.of(context).hintColor),
-                          const SizedBox(width: 4),
-                          Text('Feedback available', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: hasGrade ? _getGradeColor(submission.grade!).withOpacity(0.2) : Colors.grey.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    hasGrade ? _getGradeLabel(submission.grade!) : 'Pending',
-                    style: TextStyle(
-                      color: hasGrade ? _getGradeColor(submission.grade!) : Colors.grey,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                onTap: () => _showSubmissionDetails(submission),
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: hasGrade ? _getGradeColor(submission.grade!).withOpacity(0.1) : Colors.black.withOpacity(0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
-
-              // Action buttons
-              Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.background,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(12),
-                    bottomRight: Radius.circular(12),
+            ],
+          ),
+          child: Card(
+            margin: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 0,
+            child: Column(
+              children: [
+                InkWell(
+                  onTap: () => _showSubmissionDetails(submission),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: hasGrade
+                                    ? _getGradeColor(submission.grade!).withOpacity(0.15)
+                                    : AppTheme.warning.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                hasGrade ? Icons.check_circle : Icons.hourglass_empty,
+                                color: hasGrade ? _getGradeColor(submission.grade!) : AppTheme.warning,
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    task.title,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.calendar_today, size: 13, color: Theme.of(context).hintColor),
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: Text(
+                                          _formatDateShort(submission.submittedAt),
+                                          style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              constraints: const BoxConstraints(minWidth: 70),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: hasGrade ? _getGradeColor(submission.grade!) : AppTheme.warning,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                hasGrade ? '${submission.grade}%' : 'Pending',
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 8,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  hasGrade ? Icons.grade : Icons.pending_actions,
+                                  size: 14,
+                                  color: Theme.of(context).hintColor,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  hasGrade ? _getGradeLabel(submission.grade!) : 'Under Review',
+                                  style: TextStyle(
+                                    color: hasGrade ? _getGradeColor(submission.grade!) : Theme.of(context).hintColor,
+                                    fontWeight: hasGrade ? FontWeight.bold : FontWeight.normal,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (hasFeedback)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.comment, size: 14, color: Theme.of(context).colorScheme.primary),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Feedback',
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.primary,
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton.icon(
-                      onPressed: () => _showSubmissionDetails(submission),
-                      icon: const Icon(Icons.visibility, size: 16),
-                      label: const Text('View Details'),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ),
-                    if (hasGrade && submission.grade! >= 70) ...[
-                      const SizedBox(width: 8),
-                      TextButton.icon(
-                        onPressed: () {
-                          // Add to portfolio logic would go here
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(const SnackBar(content: Text('Adding to portfolio coming soon')));
-                        },
-                        icon: const Icon(Icons.work, size: 16),
-                        label: const Text('Add to Portfolio'),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
+
+                // Action buttons
+                Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.background.withOpacity(0.5),
+                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                    border: Border(top: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.5))),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () => _showSubmissionDetails(submission),
+                        icon: const Icon(Icons.visibility, size: 16),
+                        label: const Text('Details'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           visualDensity: VisualDensity.compact,
                         ),
                       ),
+                      if (hasGrade && submission.grade! >= 70) ...[
+                        const SizedBox(width: 8),
+                        FilledButton.icon(
+                          onPressed: () {
+                            // Add to portfolio logic would go here
+                            ScaffoldMessenger.of(
+                              context,
+                            ).showSnackBar(const SnackBar(content: Text('Adding to portfolio coming soon')));
+                          },
+                          icon: const Icon(Icons.work, size: 16),
+                          label: const Text('Portfolio'),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -778,6 +941,10 @@ class _MySubmissionsPageState extends State<MySubmissionsPage> {
     return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 
+  String _formatDateShort(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
   Color _getGradeColor(int grade) {
     if (grade >= 80) {
       return Colors.green;
@@ -827,43 +994,189 @@ class _ReviewSubmissionsPageState extends State<ReviewSubmissionsPage> {
 
     final task = taskProvider.selectedTask;
 
-    return AppScaffold(
-      title: task?.title != null ? 'Review: ${task!.title}' : 'Review Submissions',
-      showBottomNav: false,
-      currentIndex: 1, // Set Tasks as the current tab
+    return Scaffold(
+      appBar: AppBar(title: const Text('Review Submissions'), centerTitle: true, elevation: 0),
       body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Task info header
-          if (task != null)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Task: ${task.title}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  if (task.expiryDate != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        'Due: ${_formatDate(task.expiryDate!)}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                ],
-              ),
-            ),
+          // Enhanced Task Header
+          if (task != null) _buildTaskHeader(task, submissionProvider),
 
           // Submissions list
           Expanded(
             child: RefreshIndicator(onRefresh: _loadSubmissions, child: _buildContent(submissionProvider)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTaskHeader(TaskModel task, SubmissionProvider submissionProvider) {
+    final submissions = submissionProvider.submissions;
+    final totalSubmissions = submissions.length;
+    final pendingCount = submissions.where((s) => s.grade == null).length;
+    final gradedCount = submissions.where((s) => s.grade != null).length;
+    final avgGrade = gradedCount > 0
+        ? (submissions.where((s) => s.grade != null).fold<int>(0, (sum, s) => sum + s.grade!) / gradedCount).round()
+        : 0;
+
+    return Container(
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primary.withOpacity(0.8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Task Title and Status
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        task.title,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.category, size: 16, color: Colors.white70),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              task.domains.join(', '),
+                              style: const TextStyle(color: Colors.white70, fontSize: 13),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (task.expiryDate != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.calendar_today, size: 14, color: Colors.white),
+                        const SizedBox(width: 6),
+                        Text(
+                          _formatDateShort(task.expiryDate!),
+                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            // Statistics Cards
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatCard(
+                    icon: Icons.assignment,
+                    label: 'Total',
+                    value: totalSubmissions.toString(),
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildStatCard(
+                    icon: Icons.pending_actions,
+                    label: 'Pending',
+                    value: pendingCount.toString(),
+                    color: Colors.amber,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildStatCard(
+                    icon: Icons.check_circle,
+                    label: 'Graded',
+                    value: gradedCount.toString(),
+                    color: Colors.green,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildStatCard(
+                    icon: Icons.analytics,
+                    label: 'Avg Grade',
+                    value: gradedCount > 0 ? '$avgGrade%' : '-',
+                    color: Colors.lightBlue,
+                  ),
+                ),
+              ],
+            ),
+
+            if (task.description.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Divider(color: Colors.white24, height: 1),
+              const SizedBox(height: 16),
+              Text(
+                task.description,
+                style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatCard({required IconData icon, required String label, required String value, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white70, fontSize: 11),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -937,112 +1250,159 @@ class _ReviewSubmissionsPageState extends State<ReviewSubmissionsPage> {
         final submission = sortedSubmissions[index];
         final isPending = submission.grade == null;
 
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          elevation: isPending ? 3 : 1, // Highlight pending submissions
-          child: Column(
-            children: [
-              ListTile(
-                contentPadding: const EdgeInsets.all(16),
-                leading: CircleAvatar(
-                  backgroundColor: isPending
-                      ? AppTheme.warning.withOpacity(0.8)
-                      : Theme.of(context).colorScheme.primary,
-                  child: Icon(isPending ? Icons.pending_actions : Icons.check_circle, color: Colors.white),
-                ),
-                title: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Submission #${submission.submissionId.substring(0, 8)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isPending ? Colors.amber : _getGradeColor(submission.grade!),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        isPending ? 'Needs Review' : '${submission.grade}%',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(Icons.calendar_today, size: 16, color: Theme.of(context).hintColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Submitted: ${_formatDate(submission.submittedAt)}',
-                          style: TextStyle(color: Theme.of(context).hintColor),
-                        ),
-                      ],
-                    ),
-                    if (submission.fileUrl != null) ...[
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.attach_file, size: 16, color: Theme.of(context).hintColor),
-                          const SizedBox(width: 4),
-                          Text('File attached', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-                onTap: () => _showGradeDialog(submission),
-              ),
-
-              // Action buttons
-              Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.background,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(12),
-                    bottomRight: Radius.circular(12),
-                  ),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (submission.fileUrl != null)
-                      TextButton.icon(
-                        onPressed: () {
-                          // TODO: Implement file download/view
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(const SnackBar(content: Text('File download coming soon')));
-                        },
-                        icon: const Icon(Icons.download, size: 16),
-                        label: const Text('Download'),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ),
-                    const SizedBox(width: 8),
-                    TextButton.icon(
-                      onPressed: () => _showGradeDialog(submission),
-                      icon: Icon(isPending ? Icons.rate_review : Icons.edit, size: 16),
-                      label: Text(isPending ? 'Grade' : 'Edit Grade'),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ),
-                  ],
-                ),
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: isPending ? Colors.amber.withOpacity(0.15) : Colors.black.withOpacity(0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ],
+          ),
+          child: Card(
+            margin: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 0,
+            child: Column(
+              children: [
+                InkWell(
+                  onTap: () => _showGradeDialog(submission),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: isPending
+                                    ? Colors.amber.withOpacity(0.15)
+                                    : _getGradeColor(submission.grade!).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                isPending ? Icons.pending_actions : Icons.check_circle,
+                                color: isPending ? Colors.amber.shade700 : _getGradeColor(submission.grade!),
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Submission #${submission.submissionId.substring(0, 8)}',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.calendar_today, size: 14, color: Theme.of(context).hintColor),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _formatDate(submission.submittedAt),
+                                        style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: isPending ? Colors.amber : _getGradeColor(submission.grade!),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                isPending ? 'Review Needed' : '${submission.grade}%',
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (submission.fileUrl != null) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.2)),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.attach_file, size: 18, color: Theme.of(context).colorScheme.primary),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'File attached',
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.primary,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                                Icon(Icons.arrow_forward_ios, size: 14, color: Theme.of(context).colorScheme.primary),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Action buttons
+                Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.background.withOpacity(0.5),
+                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                    border: Border(top: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.5))),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (submission.fileUrl != null) ...[
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            // TODO: Implement file download/view
+                            ScaffoldMessenger.of(
+                              context,
+                            ).showSnackBar(const SnackBar(content: Text('File download coming soon')));
+                          },
+                          icon: const Icon(Icons.download, size: 18),
+                          label: const Text('Download'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      FilledButton.icon(
+                        onPressed: () => _showGradeDialog(submission),
+                        icon: Icon(isPending ? Icons.rate_review : Icons.edit, size: 18),
+                        label: Text(isPending ? 'Grade Now' : 'Edit Grade'),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          visualDensity: VisualDensity.compact,
+                          backgroundColor: isPending ? Colors.amber.shade600 : null,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -1109,6 +1469,10 @@ class _ReviewSubmissionsPageState extends State<ReviewSubmissionsPage> {
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  String _formatDateShort(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
   }
 
   Color _getGradeColor(int grade) {

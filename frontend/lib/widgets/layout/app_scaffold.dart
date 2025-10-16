@@ -49,7 +49,7 @@ class AppScaffold extends StatelessWidget {
     final externalBottomNav = ExternalNavScope.maybeOf(context)?.hasBottomNav ?? false;
 
     return Scaffold(
-      // appBar: customAppBar ?? AppBar(title: Text(title), automaticallyImplyLeading: showBackButton, actions: actions),
+      appBar: customAppBar,
       drawer: drawer,
       body: SafeArea(child: body),
       bottomNavigationBar: (showBottomNav && !externalBottomNav)

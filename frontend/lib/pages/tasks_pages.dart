@@ -143,27 +143,51 @@ class _TaskListPageState extends State<TaskListPage> {
     super.initState();
     // Load tasks after first frame to avoid notifyListeners during build
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final taskProvider = Provider.of<TaskProvider>(context, listen: false);
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
-      if (taskProvider.status == TaskLoadStatus.initial) {
-        // Load appropriate tasks based on role
-        if (authProvider.currentUser?.role == 'company') {
-          taskProvider.loadCompanyTasks(authProvider.currentUser!.userId);
-        } else {
-          taskProvider.loadTasks();
-        }
-      }
+      _loadData();
     });
+  }
+
+  Future<void> _loadData() async {
+    final taskProvider = Provider.of<TaskProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final submissionProvider = Provider.of<SubmissionProvider>(context, listen: false);
+
+    if (taskProvider.status == TaskLoadStatus.initial) {
+      // Load appropriate tasks based on role
+      if (authProvider.currentUser?.role == 'company') {
+        await taskProvider.loadCompanyTasks(authProvider.currentUser!.userId);
+      } else {
+        await taskProvider.loadTasks();
+      }
+    }
+
+    // For students, load their submissions to show status on task cards
+    if (authProvider.currentUser?.role == 'student') {
+      await submissionProvider.loadUserSubmissions(authProvider.currentUser!.userId);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final taskProvider = Provider.of<TaskProvider>(context);
     final authProvider = Provider.of<AuthProvider>(context);
+    final submissionProvider = Provider.of<SubmissionProvider>(context);
     final filteredTasks = taskProvider.filteredActiveTasks;
     final role = authProvider.currentUser?.role ?? 'student';
     final isCompany = role == 'company';
+    final isStudent = role == 'student';
+
+    // Build a map of taskId -> submission for quick lookup
+    final Map<String, dynamic> taskSubmissionMap = {};
+    if (isStudent) {
+      for (final submission in submissionProvider.submissions) {
+        taskSubmissionMap[submission.taskId] = {
+          'hasSubmission': true,
+          'isPending': submission.grade == null,
+          'grade': submission.grade,
+        };
+      }
+    }
 
     return AppScaffold(
       title: isCompany ? 'Manage Tasks' : 'Available Tasks',
@@ -182,9 +206,7 @@ class _TaskListPageState extends State<TaskListPage> {
 
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () => isCompany
-                  ? taskProvider.loadCompanyTasks(authProvider.currentUser!.userId)
-                  : taskProvider.loadTasks(),
+              onRefresh: _loadData,
               child: Builder(
                 builder: (context) {
                   if (taskProvider.status == TaskLoadStatus.loading) {
@@ -197,15 +219,19 @@ class _TaskListPageState extends State<TaskListPage> {
                       padding: const EdgeInsets.all(16),
                       children: [
                         // Active tasks first
-                        ...filteredTasks.map(
-                          (task) => TaskCard(
+                        ...filteredTasks.map((task) {
+                          final submissionInfo = taskSubmissionMap[task.taskId];
+                          return TaskCard(
                             task: task,
                             showCompanyActions: isCompany,
+                            hasSubmission: submissionInfo?['hasSubmission'],
+                            isPendingReview: submissionInfo?['isPending'],
+                            submissionGrade: submissionInfo?['grade'],
                             onTap: () => Navigator.pushNamed(context, '/tasks/detail', arguments: task.taskId),
-                          ),
-                        ),
+                          );
+                        }),
                         const SizedBox(height: 12),
-                        if (expired.isNotEmpty) _ExpiredSection(tasks: expired),
+                        if (expired.isNotEmpty) _ExpiredSection(tasks: expired, taskSubmissionMap: taskSubmissionMap),
                       ],
                     );
                   }
@@ -259,8 +285,9 @@ class _TaskListPageState extends State<TaskListPage> {
 }
 
 class _ExpiredSection extends StatefulWidget {
-  const _ExpiredSection({required this.tasks});
+  const _ExpiredSection({required this.tasks, this.taskSubmissionMap});
   final List<TaskModel> tasks;
+  final Map<String, dynamic>? taskSubmissionMap;
 
   @override
   State<_ExpiredSection> createState() => _ExpiredSectionState();
@@ -286,17 +313,19 @@ class _ExpiredSectionState extends State<_ExpiredSection> {
           duration: const Duration(milliseconds: 200),
           firstChild: const SizedBox.shrink(),
           secondChild: Column(
-            children: widget.tasks
-                .map(
-                  (t) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: TaskCard(
-                      task: t,
-                      onTap: () => Navigator.pushNamed(context, '/tasks/detail', arguments: t.taskId),
-                    ),
-                  ),
-                )
-                .toList(),
+            children: widget.tasks.map((t) {
+              final submissionInfo = widget.taskSubmissionMap?[t.taskId];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: TaskCard(
+                  task: t,
+                  hasSubmission: submissionInfo?['hasSubmission'],
+                  isPendingReview: submissionInfo?['isPending'],
+                  submissionGrade: submissionInfo?['grade'],
+                  onTap: () => Navigator.pushNamed(context, '/tasks/detail', arguments: t.taskId),
+                ),
+              );
+            }).toList(),
           ),
         ),
       ],
