@@ -16,17 +16,18 @@ const {
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Create new submission for a task with an attached file (field name: "file")
+// Ensure multer runs BEFORE we attempt to access req.body/req.file
 router.post(
   "/",
+  upload.single("file"),
   (req, res, next) => {
     logger.debug("POST /submissions route accessed", {
       hasFile: !!req.file,
       fileName: req.file?.originalname,
-      bodyKeys: Object.keys(req.body),
+      bodyKeys: Object.keys(req.body || {}),
     });
     next();
   },
-  upload.single("file"),
   createSubmission
 );
 
