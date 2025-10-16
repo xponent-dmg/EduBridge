@@ -60,7 +60,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _saveSkills(userId) async {
     final skills = skillsCtrl.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-    await api.patch('/users/${userId}/skills', body: {'skills': skills});
+    await api.patch('/users/$userId/skills', body: {'skills': skills});
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Skills updated')));
   }
