@@ -91,49 +91,20 @@ const createSubmission = async (req, res) => {
   logger.debug("createSubmission called", {
     bodyKeys: Object.keys(req.body),
     hasTaskId: !!req.body.task_id,
-    hasUserId: !!req.body.user_id,
     hasFile: !!req.file,
   });
 
   try {
-    const { task_id, user_id } = req.body;
-    if (!task_id || !user_id) {
+    const { task_id } = req.body;
+    if (!task_id) {
       logger.warn("createSubmission failed - Missing required fields", {
         hasTaskId: !!task_id,
-        hasUserId: !!user_id,
       });
-      return error(res, "task_id and user_id are required");
+      return error(res, "task_id is required");
     }
     if (!req.file) {
       logger.warn("createSubmission failed - No file provided");
       return error(res, "file is required");
-    }
-
-    logger.debug("Verifying student exists and is a student", { userId: user_id });
-    // Verify student exists and is a student
-    // Use a robust lookup to avoid single-row coercion when duplicates exist
-    const { data: student, error: studentError } = await supabase
-      .from("users")
-      .select("role")
-      .eq("user_id", user_id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (studentError) {
-      logger.error("Failed to verify student", { userId: user_id, error: studentError.message });
-      throw studentError;
-    }
-    if (!student) {
-      logger.warn("createSubmission failed - User not found", { userId: user_id });
-      return error(res, "User not found", 404);
-    }
-    if (student.role !== "student") {
-      logger.warn("createSubmission failed - User not student", {
-        userId: user_id,
-        role: student.role,
-      });
-      return error(res, "Only students can create submissions", 403);
     }
 
     logger.debug("Verifying task exists", { taskId: task_id });
@@ -149,17 +120,16 @@ const createSubmission = async (req, res) => {
       throw taskError;
     }
 
-    logger.debug("Creating submission record", { taskId: task_id, userId: user_id });
+    logger.debug("Creating submission record", { taskId: task_id });
     const { data, error: dbError } = await supabase
       .from("submissions")
-      .insert([{ task_id, user_id, status: "pending" }])
+      .insert([{ task_id, status: "pending" }])
       .select()
       .single();
 
     if (dbError) {
       logger.error("Failed to create submission", {
         taskId: task_id,
-        userId: user_id,
         error: dbError.message,
       });
       throw dbError;
@@ -172,7 +142,6 @@ const createSubmission = async (req, res) => {
     logger.info("Submission created successfully", {
       submissionId: data.submission_id,
       taskId: task_id,
-      userId: user_id,
       fileId: fileRecord.file_id,
     });
 
@@ -195,7 +164,6 @@ const getSubmissionById = async (req, res) => {
       .select(
         `
         *,
-        users!submissions_user_id_fkey(name, email),
         tasks(title, description, posted_by)
       `
       )
@@ -249,11 +217,11 @@ const updateSubmissionStatus = async (req, res) => {
     }
 
     if (status !== "accepted") {
-      logger.debug("Submission not accepted, returning without portfolio/EduPoints", {
+      logger.debug("Submission not accepted, returning without portfolio", {
         submissionId: id,
         status,
       });
-      return success(res, { updated: sub, portfolio: null, edupoints: null });
+      return success(res, { updated: sub, portfolio: null });
     }
 
     // 2) On approve → add to portfolio_entries (if not exists)
@@ -285,27 +253,12 @@ const updateSubmissionStatus = async (req, res) => {
       logger.debug("Portfolio entry already exists", { portfolioEntryId: existing.entry_id });
     }
 
-    // 3) Award EduPoints to the student (simple rule: 100 points)
-    const user_id = sub.user_id;
-    logger.debug("Awarding EduPoints to student", { userId: user_id, amount: 100 });
-    const { data: edp, error: epErr } = await supabase
-      .from("edupoints")
-      .insert([{ user_id: user_id, amount: 100, tx_type: "award" }])
-      .select()
-      .single();
-    if (epErr) {
-      logger.error("Failed to award EduPoints", { userId: user_id, error: epErr.message });
-      throw epErr;
-    }
-
     logger.info("Submission approved successfully", {
       submissionId: id,
-      userId: user_id,
       portfolioEntryId: portfolioEntry?.entry_id,
-      edupointsId: edp.tx_id,
     });
 
-    success(res, { updated: sub, portfolio: portfolioEntry, edupoints: edp });
+    success(res, { updated: sub, portfolio: portfolioEntry });
   } catch (e) {
     logger.error("updateSubmissionStatus error", {
       submissionId: id,
@@ -325,12 +278,7 @@ const getSubmissionsByTask = async (req, res) => {
     logger.debug("Fetching submissions for task", { taskId: id });
     const { data, error: dbError } = await supabase
       .from("submissions")
-      .select(
-        `
-        *,
-        users!submissions_user_id_fkey(name, email)
-      `
-      )
+      .select("*")
       .eq("task_id", id)
       .order("submit_time", { ascending: false });
 
@@ -387,31 +335,14 @@ const getFilesForSubmission = async (req, res) => {
   }
 };
 
-// Get submissions for a user
+// Get submissions for a user (unsupported)
 const getSubmissionsByUser = async (req, res) => {
   const { id } = req.params;
   logger.debug("getSubmissionsByUser called", { userId: id });
 
   try {
-    logger.debug("Fetching submissions for user", { userId: id });
-    const { data, error: dbError } = await supabase
-      .from("submissions")
-      .select("*")
-      .eq("user_id", id)
-      .order("submit_time", { ascending: false });
-
-    if (dbError) {
-      logger.error("Failed to fetch submissions for user", { userId: id, error: dbError.message });
-      throw dbError;
-    }
-
-    const shaped = (data || []).map((s) => ({ ...s, submitted_at: s.submit_time }));
-    logger.debug("getSubmissionsByUser completed successfully", {
-      userId: id,
-      submissionsCount: shaped.length,
-    });
-
-    success(res, shaped);
+    logger.warn("getSubmissionsByUser is unsupported: submissions are not linked to user_id");
+    return error(res, "Submissions are not linked to user_id; filter by task instead", 400);
   } catch (e) {
     logger.error("getSubmissionsByUser error", { userId: id, error: e.message, stack: e.stack });
     error(res, e.message, 500);
