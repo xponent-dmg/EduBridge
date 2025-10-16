@@ -24,17 +24,32 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> get(String path, {Map<String, String>? query}) async {
-    final res = await _http.get(_uri(path, query), headers: _headers());
+    final url = _uri(path, query);
+    // ignore: avoid_print
+    print('[ApiClient] GET $url');
+    final res = await _http.get(url, headers: _headers());
+    // ignore: avoid_print
+    print('[ApiClient] <- ${res.statusCode} ${res.body.substring(0, res.body.length > 200 ? 200 : res.body.length)}');
     return _decode(res);
   }
 
   Future<Map<String, dynamic>> post(String path, {Object? body}) async {
-    final res = await _http.post(_uri(path), headers: _headers(), body: jsonEncode(body ?? {}));
+    final url = _uri(path);
+    // ignore: avoid_print
+    print('[ApiClient] POST $url body=${jsonEncode(body ?? {})}');
+    final res = await _http.post(url, headers: _headers(), body: jsonEncode(body ?? {}));
+    // ignore: avoid_print
+    print('[ApiClient] <- ${res.statusCode} ${res.body.substring(0, res.body.length > 200 ? 200 : res.body.length)}');
     return _decode(res);
   }
 
   Future<Map<String, dynamic>> patch(String path, {Object? body}) async {
-    final res = await _http.patch(_uri(path), headers: _headers(), body: jsonEncode(body ?? {}));
+    final url = _uri(path);
+    // ignore: avoid_print
+    print('[ApiClient] PATCH $url body=${jsonEncode(body ?? {})}');
+    final res = await _http.patch(url, headers: _headers(), body: jsonEncode(body ?? {}));
+    // ignore: avoid_print
+    print('[ApiClient] <- ${res.statusCode} ${res.body.substring(0, res.body.length > 200 ? 200 : res.body.length)}');
     return _decode(res);
   }
 
@@ -43,6 +58,8 @@ class ApiClient {
     if (res.statusCode >= 200 && res.statusCode < 300) {
       return decoded;
     }
+    // ignore: avoid_print
+    print('[ApiClient] ERROR ${res.statusCode} $decoded');
     throw ApiException(statusCode: res.statusCode, body: decoded);
   }
 }

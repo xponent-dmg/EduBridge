@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key, required this.userId});
-  final dynamic userId;
+  const ProfilePage({super.key});
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -12,8 +11,9 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final api = ApiClient();
-  Map<String, dynamic>? user;
+  // Map<String, dynamic>? user;
   final skillsCtrl = TextEditingController();
+  Map<String, dynamic>? me;
   bool loading = true;
 
   @override
@@ -23,21 +23,49 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _load() async {
-    final res = await api.get('/users/${widget.userId}');
-    user = res['data'] as Map<String, dynamic>?;
-    skillsCtrl.text = (user?['skills'] as List?)?.join(', ') ?? '';
-    setState(() => loading = false);
+    setState(() => loading = true);
+    try {
+      // ignore: avoid_print
+      print('[Dashboard] Loading current user and edupoints');
+      // Demo mode: try to pick a user by desired role; if none exists, create one
+      final desiredRole = 'student';
+      final users = await api.get('/users');
+      final list = (users['data'] as List?) ?? [];
+      final candidates = list.where((u) => (u as Map)['role'] == desiredRole).toList();
+      if (candidates.isNotEmpty) {
+        me = candidates.first as Map<String, dynamic>;
+      } else {
+        // create demo user for this role
+        final millis = DateTime.now().millisecondsSinceEpoch;
+        final created = await api.post(
+          '/users',
+          body: {
+            'name': 'Demo ${desiredRole[0].toUpperCase()}${desiredRole.substring(1)}',
+            'email': 'demo_${desiredRole}_$millis@example.com',
+            'role': desiredRole,
+          },
+        );
+        me = created['data'] as Map<String, dynamic>?;
+      }
+    } catch (_) {
+      // ignore in minimal UI
+      // ignore: avoid_print
+      print('[Dashboard] Failed to load user/edupoints');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
   }
 
-  Future<void> _saveSkills() async {
+  Future<void> _saveSkills(userId) async {
     final skills = skillsCtrl.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-    await api.patch('/users/${widget.userId}/skills', body: {'skills': skills});
+    await api.patch('/users/${userId}/skills', body: {'skills': skills});
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Skills updated')));
   }
 
   @override
   Widget build(BuildContext context) {
+    final userId = ModalRoute.of(context)?.settings.arguments;
     return Scaffold(
       appBar: AppBar(title: const Text('Profile')),
       body: loading
@@ -47,15 +75,15 @@ class _ProfilePageState extends State<ProfilePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(user?['name'] ?? ''),
-                  Text(user?['email'] ?? ''),
+                  Text(me?['name'] ?? ''),
+                  Text(me?['email'] ?? ''),
                   const SizedBox(height: 12),
                   TextField(
                     controller: skillsCtrl,
                     decoration: const InputDecoration(labelText: 'Skills (comma separated)'),
                   ),
                   const SizedBox(height: 8),
-                  FilledButton(onPressed: _saveSkills, child: const Text('Save Skills')),
+                  FilledButton(onPressed: () => _saveSkills(userId), child: const Text('Save Skills')),
                 ],
               ),
             ),

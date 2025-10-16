@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import '../services/api_client.dart';
+import '../models/task_model.dart';
+import '../providers/auth_provider.dart';
+import '../providers/task_provider.dart';
+import '../widgets/common/app_button.dart';
+import '../widgets/layout/app_scaffold.dart';
+import '../widgets/tasks/task_card.dart';
+import '../widgets/tasks/task_detail_header.dart';
+import '../widgets/tasks/task_filter_bar.dart';
 
 class TaskListPage extends StatefulWidget {
   const TaskListPage({super.key});
@@ -10,81 +18,85 @@ class TaskListPage extends StatefulWidget {
 }
 
 class _TaskListPageState extends State<TaskListPage> {
-  final api = ApiClient();
-  List tasks = [];
-  bool loading = true;
-  String domainFilter = '';
-  RangeValues effortFilter = const RangeValues(0, 40);
-
   @override
   void initState() {
     super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final res = await api.get('/tasks');
-    tasks = (res['data'] as List?) ?? [];
-    setState(() => loading = false);
+    // Load tasks if not already loaded
+    final taskProvider = Provider.of<TaskProvider>(context, listen: false);
+    if (taskProvider.status == TaskLoadStatus.initial) {
+      taskProvider.loadTasks();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = tasks.where((t) {
-      final domains = (t['domains'] as List?)?.cast<String>() ?? [];
-      final effort = (t['effort_hours'] ?? 0) as num;
-      final matchesDomain = domainFilter.isEmpty || domains.contains(domainFilter);
-      final matchesEffort = effort >= effortFilter.start && effort <= effortFilter.end;
-      return matchesDomain && matchesEffort;
-    }).toList();
+    final taskProvider = Provider.of<TaskProvider>(context);
+    final filteredTasks = taskProvider.filteredTasks;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Tasks')),
+    return AppScaffold(
+      title: 'Tasks',
+      currentIndex: 1,
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: const InputDecoration(labelText: 'Filter by domain'),
-                    onChanged: (v) => setState(() => domainFilter = v.trim()),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Text('Effort:'),
-                Expanded(
-                  child: RangeSlider(
-                    values: effortFilter,
-                    min: 0,
-                    max: 80,
-                    divisions: 16,
-                    labels: RangeLabels('${effortFilter.start.toInt()}', '${effortFilter.end.toInt()}'),
-                    onChanged: (v) => setState(() => effortFilter = v),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (loading) const LinearProgressIndicator(),
+          const TaskFilterBar(),
+
           Expanded(
-            child: ListView.builder(
-              itemCount: filtered.length,
-              itemBuilder: (_, i) {
-                final t = filtered[i];
-                return Card(
-                  child: ListTile(
-                    title: Text(t['title'] ?? ''),
-                    subtitle: Text((t['domains'] as List?)?.join(', ') ?? ''),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.pushNamed(context, '/tasks/detail', arguments: t['task_id']),
-                  ),
-                );
-              },
+            child: RefreshIndicator(
+              onRefresh: () => taskProvider.loadTasks(),
+              child: Builder(
+                builder: (context) {
+                  if (taskProvider.status == TaskLoadStatus.loading) {
+                    return const Center(child: CircularProgressIndicator());
+                  } else if (filteredTasks.isEmpty) {
+                    return _buildEmptyState();
+                  } else {
+                    return ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: filteredTasks.length,
+                      itemBuilder: (context, index) {
+                        final task = filteredTasks[index];
+                        return TaskCard(
+                          task: task,
+                          onTap: () => Navigator.pushNamed(context, '/tasks/detail', arguments: task.taskId),
+                        );
+                      },
+                    );
+                  }
+                },
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text('No tasks found', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Text(
+              'Try adjusting your filters or check back later for new tasks',
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color),
+            ),
+            const SizedBox(height: 24),
+            AppButton(
+              text: 'Clear Filters',
+              onPressed: () => Provider.of<TaskProvider>(context, listen: false).clearFilters(),
+              type: AppButtonType.secondary,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -99,49 +111,65 @@ class TaskDetailPage extends StatefulWidget {
 }
 
 class _TaskDetailPageState extends State<TaskDetailPage> {
-  final api = ApiClient();
-  Map<String, dynamic>? task;
-  bool loading = true;
-
   @override
   void initState() {
     super.initState();
-    _load();
+    _loadTaskDetails();
   }
 
-  Future<void> _load() async {
-    final res = await api.get('/tasks/${widget.taskId}');
-    task = res['data'] as Map<String, dynamic>?;
-    setState(() => loading = false);
+  Future<void> _loadTaskDetails() async {
+    final taskProvider = Provider.of<TaskProvider>(context, listen: false);
+    await taskProvider.loadTaskDetails(widget.taskId.toString());
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Task Detail')),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(task?['title'] ?? '', style: Theme.of(context).textTheme.headlineSmall),
-                  const SizedBox(height: 8),
-                  Text(task?['description'] ?? ''),
-                  const SizedBox(height: 8),
-                  Text('Domains: ${(task?['domains'] as List?)?.join(', ') ?? ''}'),
-                  const Spacer(),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () => Navigator.pushNamed(context, '/submissions/create', arguments: task?['task_id']),
-                      child: const Text('Submit Solution'),
+    final taskProvider = Provider.of<TaskProvider>(context);
+    final authProvider = Provider.of<AuthProvider>(context);
+    final task = taskProvider.selectedTask;
+    final isStudent = authProvider.currentUser?.role == 'student';
+
+    return AppScaffold(
+      title: 'Task Details',
+      showBottomNav: false,
+      body: RefreshIndicator(
+        onRefresh: _loadTaskDetails,
+        child: taskProvider.status == TaskLoadStatus.loading
+            ? const Center(child: CircularProgressIndicator())
+            : task == null
+            ? Center(child: Text('Task not found'))
+            : SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TaskDetailHeader(task: task),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Description',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(task.description, style: Theme.of(context).textTheme.bodyLarge),
+                          const SizedBox(height: 32),
+                          if (isStudent)
+                            AppButton(
+                              text: 'Submit Solution',
+                              icon: Icons.upload_file,
+                              isFullWidth: true,
+                              onPressed: () =>
+                                  Navigator.pushNamed(context, '/submissions/create', arguments: task.taskId),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+      ),
     );
   }
 }
@@ -155,7 +183,6 @@ class CreateTaskPage extends StatefulWidget {
 }
 
 class _CreateTaskPageState extends State<CreateTaskPage> {
-  final api = ApiClient();
   final _formKey = GlobalKey<FormState>();
   final titleCtrl = TextEditingController();
   final descCtrl = TextEditingController();
@@ -164,84 +191,146 @@ class _CreateTaskPageState extends State<CreateTaskPage> {
   DateTime? expiry;
   bool loading = false;
 
-  Future<void> _submit() async {
+  @override
+  Widget build(BuildContext context) {
+    final taskProvider = Provider.of<TaskProvider>(context);
+
+    return AppScaffold(
+      title: 'Create Task',
+      showBottomNav: false,
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextFormField(
+              controller: titleCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Title',
+                hintText: 'Enter a descriptive title',
+                prefixIcon: Icon(Icons.title),
+              ),
+              validator: (v) => (v == null || v.isEmpty) ? 'Title is required' : null,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: descCtrl,
+              maxLines: 5,
+              decoration: const InputDecoration(
+                labelText: 'Description',
+                hintText: 'Provide detailed instructions for the task',
+                alignLabelWithHint: true,
+                prefixIcon: Icon(Icons.description),
+              ),
+              validator: (v) => (v == null || v.isEmpty) ? 'Description is required' : null,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: domainsCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Domains (comma separated)',
+                hintText: 'e.g. Web Development, UI/UX, Mobile',
+                prefixIcon: Icon(Icons.category),
+              ),
+              validator: (v) => (v == null || v.isEmpty) ? 'At least one domain is required' : null,
+            ),
+            const SizedBox(height: 24),
+            Text('Effort Hours: ${effort.toInt()}', style: Theme.of(context).textTheme.titleMedium),
+            Slider(
+              min: 1,
+              max: 80,
+              divisions: 79,
+              value: effort,
+              label: '${effort.toInt()} hours',
+              onChanged: (v) => setState(() => effort = v),
+            ),
+            const SizedBox(height: 16),
+            InkWell(
+              onTap: () async {
+                final now = DateTime.now();
+                final picked = await showDatePicker(
+                  context: context,
+                  firstDate: now,
+                  lastDate: now.add(const Duration(days: 365)),
+                  initialDate: now,
+                );
+                if (picked != null) setState(() => expiry = picked);
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).inputDecorationTheme.fillColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Expiry Date',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onBackground.withOpacity(0.6),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            expiry != null
+                                ? '${expiry!.day}/${expiry!.month}/${expiry!.year}'
+                                : 'No deadline (optional)',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (expiry != null)
+                      IconButton(icon: const Icon(Icons.clear), onPressed: () => setState(() => expiry = null)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
+            AppButton(
+              text: 'Create Task',
+              isLoading: loading,
+              isFullWidth: true,
+              onPressed: () => _submit(taskProvider),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submit(TaskProvider taskProvider) async {
     if (!_formKey.currentState!.validate()) return;
+
     setState(() => loading = true);
+
     try {
-      await api.post(
-        '/tasks',
-        body: {
-          'company_id': widget.companyId,
-          'title': titleCtrl.text.trim(),
-          'description': descCtrl.text.trim(),
-          'domains': domainsCtrl.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
-          'effort_hours': effort.toInt(),
-          'expiry_date': expiry?.toIso8601String(),
-        },
-      );
+      final success = await taskProvider.createTask({
+        'posted_by': widget.companyId,
+        'title': titleCtrl.text.trim(),
+        'description': descCtrl.text.trim(),
+        'domains': domainsCtrl.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
+        'effort_hours': effort.toInt(),
+        'expiry_date': expiry?.toIso8601String(),
+      });
+
       if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Task created')));
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Task created successfully')));
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: ${taskProvider.errorMessage}')));
       }
     } finally {
       if (mounted) setState(() => loading = false);
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Create Task')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            children: [
-              TextFormField(
-                controller: titleCtrl,
-                decoration: const InputDecoration(labelText: 'Title'),
-                validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
-              ),
-              TextFormField(
-                controller: descCtrl,
-                maxLines: 4,
-                decoration: const InputDecoration(labelText: 'Description'),
-              ),
-              TextFormField(
-                controller: domainsCtrl,
-                decoration: const InputDecoration(labelText: 'Domains (comma separated)'),
-              ),
-              const SizedBox(height: 12),
-              Text('Effort Hours: ${effort.toInt()}'),
-              Slider(min: 1, max: 80, divisions: 79, value: effort, onChanged: (v) => setState(() => effort = v)),
-              Row(
-                children: [
-                  Expanded(child: Text('Expiry: ${expiry?.toIso8601String() ?? 'None'}')),
-                  TextButton(
-                    onPressed: () async {
-                      final now = DateTime.now();
-                      final picked = await showDatePicker(
-                        context: context,
-                        firstDate: now,
-                        lastDate: now.add(const Duration(days: 365)),
-                        initialDate: now,
-                      );
-                      if (picked != null) setState(() => expiry = picked);
-                    },
-                    child: const Text('Pick date'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              FilledButton(onPressed: loading ? null : _submit, child: Text(loading ? 'Please wait...' : 'Create')),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }

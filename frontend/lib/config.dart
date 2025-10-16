@@ -1,10 +1,18 @@
-// App configuration
+// App configuration (dotenv version)
 
-// Backend base URL. Override at runtime with: --dart-define=BACKEND_URL=http://10.0.2.2:5050
-const String backendBaseUrl = String.fromEnvironment('BACKEND_URL', defaultValue: 'http://localhost:5050');
+// import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-// Supabase configuration. Provide via --dart-define or leave empty to disable auth UI.
-const String supabaseUrl = String.fromEnvironment('SUPABASE_URL', defaultValue: '');
-const String supabaseAnonKey = String.fromEnvironment('SUPABASE_SERVICE_ROLE_KEY', defaultValue: '');
+// final String backendBaseUrl = dotenv.env['BACKEND_URL'] ?? 'http://localhost:5050';
+
+// final String supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
+// final String supabaseAnonKey = dotenv.env['SUPABASE_SERVICE_ROLE_KEY'] ?? '';
+
+// bool get isSupabaseConfigured => supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
+
+final String backendBaseUrl = 'https://edubridge-xux6.onrender.com';
+
+final String supabaseUrl = 'https://pvfernqzjurygimrveon.supabase.co';
+final String supabaseAnonKey =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2ZmVybnF6anVyeWdpbXJ2ZW9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5MDM1MDksImV4cCI6MjA3MjQ3OTUwOX0.WxK3qU-x-gosvNH3YH00PIs6anQoRExKHBXvw_L05lc";
 
 bool get isSupabaseConfigured => supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
