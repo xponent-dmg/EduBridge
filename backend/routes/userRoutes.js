@@ -40,6 +40,7 @@ router.post(
     logger.debug("POST /users route accessed", { bodyKeys: Object.keys(req.body) });
     next();
   },
+  authenticate,
   createUser
 );
 

@@ -26,14 +26,38 @@ const getMe = async (req, res) => {
       return error(res, "Not authenticated", 401);
     }
 
-    logger.debug("Looking up application user by email", { email: supaUser.email });
+    // Prefer lookup by auth user id -> user_id (uuid default auth.uid())
+    logger.debug("Looking up application user by user_id", { authUserId: supaUser.id });
 
-    // Lookup the application user by email
-    const { data: user, error: userError } = await supabase
+    let { data: user, error: userError } = await supabase
       .from("users")
       .select("user_id, name, email, role, created_at")
-      .eq("email", supaUser.email)
+      .eq("user_id", supaUser.id)
       .single();
+
+    // Fallback to email lookup if user_id record is missing
+    if (userError) {
+      logger.warn("Primary lookup by user_id failed, attempting email lookup", {
+        authUserId: supaUser.id,
+        email: supaUser.email,
+        error: userError.message,
+      });
+      const fallback = await supabase
+        .from("users")
+        .select("user_id, name, email, role, created_at")
+        .eq("email", supaUser.email)
+        .limit(1)
+        .maybeSingle();
+      user = fallback.data || null;
+      userError = null;
+      if (!user) {
+        logger.warn("No application user found for authenticated subject", {
+          authUserId: supaUser.id,
+          email: supaUser.email,
+        });
+        return error(res, "User profile not found", 404);
+      }
+    }
 
     if (userError) {
       logger.error("Failed to lookup user by email", {
@@ -98,11 +122,12 @@ const createUser = async (req, res) => {
       return error(res, "role must be either 'student' or 'company'");
     }
 
-    logger.debug("Creating user in database", { name, email, role });
+    logger.debug("Creating user in database", { name, email, role, authUserId: req.user?.id });
 
+    // Ensure we store the current auth user's id in user_id
     const { data, error: dbError } = await supabase
       .from("users")
-      .insert([{ name, email, role }])
+      .insert([{ user_id: req.user?.id, name, email, role }])
       .select()
       .single();
 

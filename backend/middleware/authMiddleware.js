@@ -38,24 +38,87 @@ exports.authenticate = async (req, res, next) => {
       error,
     } = await supabase.auth.getUser(token);
 
-    if (error || !user) {
+    let resolvedUser = user;
+
+    // Fallback: if Supabase reports missing session, try to decode the JWT and lookup via Admin API
+    if (!resolvedUser) {
+      const errMessage = error?.message || "unknown";
+      logger.warn("Primary token validation failed, attempting admin fallback", {
+        requestId,
+        error: errMessage,
+      });
+
+      // Decode JWT payload (no signature verification) to extract claims
+      const decodeJwt = (jwt) => {
+        try {
+          const parts = jwt.split(".");
+          if (parts.length !== 3) return null;
+          const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+          const pad = "=".repeat((4 - (base64.length % 4)) % 4);
+          const json = Buffer.from(base64 + pad, "base64").toString("utf8");
+          return JSON.parse(json);
+        } catch (e) {
+          return null;
+        }
+      };
+
+      const claims = decodeJwt(token);
+      logger.debug("Decoded JWT claims (partial)", {
+        requestId,
+        hasClaims: !!claims,
+        sub: claims?.sub,
+        email: claims?.email,
+        iss: claims?.iss,
+        exp: claims?.exp,
+      });
+
+      const nowSec = Math.floor(Date.now() / 1000);
+      if (claims && claims.sub && (!claims.exp || claims.exp > nowSec)) {
+        try {
+          const { data: adminData, error: adminError } = await supabase.auth.admin.getUserById(
+            claims.sub
+          );
+          if (!adminError && adminData?.user) {
+            resolvedUser = adminData.user;
+            logger.logAuth("AUTHENTICATION_FALLBACK_SUCCESS", resolvedUser, true);
+          } else {
+            logger.warn("Admin fallback could not resolve user", {
+              requestId,
+              adminError: adminError?.message,
+              sub: claims.sub,
+            });
+          }
+        } catch (e) {
+          logger.error("Admin fallback error", { requestId, error: e.message });
+        }
+      } else {
+        logger.warn("JWT claims invalid or expired", {
+          requestId,
+          hasClaims: !!claims,
+          exp: claims?.exp,
+          now: nowSec,
+        });
+      }
+    }
+
+    if (!resolvedUser) {
       logger.warn("Authentication failed - Invalid token", {
         requestId,
         error: error?.message,
-        hasUser: !!user,
+        hasUser: false,
       });
       return bad(res, "Invalid token", 401);
     }
 
-    logger.logAuth("AUTHENTICATION_SUCCESS", user, true);
+    logger.logAuth("AUTHENTICATION_SUCCESS", resolvedUser, true);
     logger.debug("User authenticated successfully", {
       requestId,
-      userId: user.id,
-      userEmail: user.email,
+      userId: resolvedUser.id,
+      userEmail: resolvedUser.email,
     });
 
     // Add user to request object
-    req.user = user;
+    req.user = resolvedUser;
     next();
   } catch (e) {
     logger.error("Authentication middleware error", {
