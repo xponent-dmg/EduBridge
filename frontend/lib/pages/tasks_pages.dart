@@ -282,6 +282,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     return AppScaffold(
       title: 'Task Details',
       showBottomNav: false,
+      currentIndex: 1, // Set Tasks as the current tab
       body: RefreshIndicator(
         onRefresh: _loadTaskDetails,
         child: taskProvider.status == TaskLoadStatus.loading
@@ -357,29 +358,39 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                             ),
                           ] else if (isTaskOwner) ...[
                             // Company actions for their own task
-                            Row(
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: AppButton(
-                                    text: 'Edit Task',
-                                    icon: Icons.edit,
-                                    type: AppButtonType.secondary,
-                                    onPressed: () {
-                                      // TODO: Implement task editing
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(const SnackBar(content: Text('Task editing coming soon')));
-                                    },
-                                  ),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: AppButton(
+                                        text: 'Edit Task',
+                                        icon: Icons.edit,
+                                        type: AppButtonType.secondary,
+                                        onPressed: () {
+                                          // TODO: Implement task editing
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(const SnackBar(content: Text('Task editing coming soon')));
+                                        },
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: AppButton(
-                                    text: 'View Submissions',
-                                    icon: Icons.assignment_turned_in,
-                                    onPressed: () =>
-                                        Navigator.pushNamed(context, '/submissions/review', arguments: task.taskId),
-                                  ),
+                                const SizedBox(height: 24),
+                                // Show submissions section directly here
+                                Text(
+                                  'Submissions',
+                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 16),
+                                AppButton(
+                                  text: 'View All Submissions',
+                                  icon: Icons.assignment_turned_in,
+                                  isFullWidth: true,
+                                  onPressed: () =>
+                                      Navigator.pushNamed(context, '/submissions/review', arguments: task.taskId),
                                 ),
                               ],
                             ),

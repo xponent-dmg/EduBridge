@@ -804,7 +804,9 @@ class _ReviewSubmissionsPageState extends State<ReviewSubmissionsPage> {
   @override
   void initState() {
     super.initState();
-    _loadSubmissions();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSubmissions();
+    });
   }
 
   Future<void> _loadSubmissions() async {
@@ -829,6 +831,7 @@ class _ReviewSubmissionsPageState extends State<ReviewSubmissionsPage> {
     return AppScaffold(
       title: task?.title != null ? 'Review: ${task!.title}' : 'Review Submissions',
       showBottomNav: false,
+      currentIndex: 1, // Set Tasks as the current tab
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

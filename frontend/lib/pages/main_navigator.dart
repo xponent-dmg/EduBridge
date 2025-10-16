@@ -31,19 +31,30 @@ class _MainNavigatorState extends State<MainNavigator> {
     // Initialize pages once
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final userId = authProvider.currentUser?.userId;
+    final userRole = authProvider.currentUser?.role ?? 'student';
+    final isCompany = userRole == 'company';
+
     if (_cachedPages.isEmpty) {
-      _cachedPages.addAll([
-        const DashboardPage(),
-        const TaskListPage(),
-        const MySubmissionsPage(),
-        PortfolioPage(userId: userId),
-        ProfilePage(userId: userId),
-      ]);
+      if (isCompany) {
+        _cachedPages.addAll([const DashboardPage(), const TaskListPage(), ProfilePage(userId: userId)]);
+      } else {
+        _cachedPages.addAll([
+          const DashboardPage(),
+          const TaskListPage(),
+          const MySubmissionsPage(),
+          PortfolioPage(userId: userId),
+          ProfilePage(userId: userId),
+        ]);
+      }
       _lastUserId = userId;
     } else if (_lastUserId != userId) {
       // Update pages that depend on userId when auth changes
-      _cachedPages[3] = PortfolioPage(userId: userId);
-      _cachedPages[4] = ProfilePage(userId: userId);
+      if (isCompany) {
+        _cachedPages[2] = ProfilePage(userId: userId);
+      } else {
+        _cachedPages[3] = PortfolioPage(userId: userId);
+        _cachedPages[4] = ProfilePage(userId: userId);
+      }
       _lastUserId = userId;
     }
   }
@@ -69,19 +80,27 @@ class _MainNavigatorState extends State<MainNavigator> {
   }
 
   Widget _buildBottomNav(String userRole) {
+    final isCompany = userRole == 'company';
+
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
       currentIndex: _currentIndex,
       onTap: _onTabTapped,
       selectedItemColor: Theme.of(context).primaryColor,
       unselectedItemColor: Colors.grey,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
-        BottomNavigationBarItem(icon: Icon(Icons.task_alt), label: 'Tasks'),
-        BottomNavigationBarItem(icon: Icon(Icons.upload_file), label: 'Submissions'),
-        BottomNavigationBarItem(icon: Icon(Icons.work), label: 'Portfolio'),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-      ],
+      items: isCompany
+          ? const [
+              BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
+              BottomNavigationBarItem(icon: Icon(Icons.task_alt), label: 'Tasks'),
+              BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+            ]
+          : const [
+              BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
+              BottomNavigationBarItem(icon: Icon(Icons.task_alt), label: 'Tasks'),
+              BottomNavigationBarItem(icon: Icon(Icons.upload_file), label: 'Submissions'),
+              BottomNavigationBarItem(icon: Icon(Icons.work), label: 'Portfolio'),
+              BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+            ],
     );
   }
 }
