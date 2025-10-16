@@ -111,15 +111,22 @@ const createSubmission = async (req, res) => {
 
     logger.debug("Verifying student exists and is a student", { userId: user_id });
     // Verify student exists and is a student
+    // Use a robust lookup to avoid single-row coercion when duplicates exist
     const { data: student, error: studentError } = await supabase
       .from("users")
       .select("role")
       .eq("user_id", user_id)
-      .single();
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (studentError) {
       logger.error("Failed to verify student", { userId: user_id, error: studentError.message });
       throw studentError;
+    }
+    if (!student) {
+      logger.warn("createSubmission failed - User not found", { userId: user_id });
+      return error(res, "User not found", 404);
     }
     if (student.role !== "student") {
       logger.warn("createSubmission failed - User not student", {
