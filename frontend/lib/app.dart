@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'pages/auth_page.dart';
+// import 'pages/auth_page.dart';
+import 'pages/otp_auth_page.dart';
+import 'pages/verify_otp_page.dart';
+import 'pages/forgot_password_page.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/onboarding_page.dart';
 import 'pages/profile_admin_pages.dart';
@@ -47,7 +50,18 @@ class MyApp extends StatelessWidget {
         '/auth': (context) {
           // ignore: avoid_print
           print('[Router] /auth');
-          return const AuthPage();
+          return const OtpAuthPage();
+        },
+        '/auth/verify-otp': (context) {
+          // ignore: avoid_print
+          print('[Router] /auth/verify-otp');
+          final email = ModalRoute.of(context)?.settings.arguments as String?;
+          return VerifyOtpPage(email: email ?? '');
+        },
+        '/auth/forgot': (context) {
+          // ignore: avoid_print
+          print('[Router] /auth/forgot');
+          return const ForgotPasswordPage();
         },
         '/dashboard': (context) {
           // ignore: avoid_print

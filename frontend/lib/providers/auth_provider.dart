@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -12,6 +13,7 @@ class AuthProvider extends ChangeNotifier {
   String? _token;
   UserModel? _currentUser;
   String? _errorMessage;
+  StreamSubscription<AuthState>? _authSub;
 
   AuthStatus get status => _status;
   String? get token => _token;
@@ -29,6 +31,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
 
       await AuthService.initIfConfigured();
+      _subscribeToAuthChanges();
       _token = AuthService.currentToken;
 
       if (_token != null) {
@@ -41,6 +44,23 @@ class AuthProvider extends ChangeNotifier {
       _errorMessage = e.toString();
     }
     notifyListeners();
+  }
+
+  void _subscribeToAuthChanges() {
+    if (!AuthService.isInitialized) return;
+    _authSub?.cancel();
+    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((event) async {
+      final session = event.session;
+      if (session != null) {
+        _token = session.accessToken;
+        await _fetchCurrentUser();
+      } else {
+        _token = null;
+        _currentUser = null;
+        _status = AuthStatus.unauthenticated;
+        notifyListeners();
+      }
+    });
   }
 
   Future<void> _fetchCurrentUser() async {
@@ -147,5 +167,22 @@ class AuthProvider extends ChangeNotifier {
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  // Public method to refresh user/session after external auth flows
+  Future<void> refreshCurrentUser() async {
+    _token = AuthService.currentToken;
+    if (_token != null) {
+      await _fetchCurrentUser();
+    } else {
+      _status = AuthStatus.unauthenticated;
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
   }
 }

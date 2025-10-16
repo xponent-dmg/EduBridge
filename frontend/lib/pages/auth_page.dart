@@ -72,6 +72,15 @@ class _AuthPageState extends State<AuthPage> {
     final isLoading = authProvider.status == AuthStatus.loading;
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Sign In'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pushReplacementNamed(context, '/start'),
+            child: const Text('Demo mode', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -180,17 +189,7 @@ class _AuthPageState extends State<AuthPage> {
                     ],
                   ),
 
-                  // Demo mode option
-                  const SizedBox(height: 24),
-                  const Divider(),
-                  const SizedBox(height: 16),
-                  Text('Or continue without an account', style: TextStyle(color: Colors.grey.shade600)),
-                  const SizedBox(height: 16),
-                  OutlinedButton(
-                    onPressed: () => Navigator.pushReplacementNamed(context, '/start'),
-                    style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
-                    child: const Text('Continue in Demo Mode'),
-                  ),
+                  // Demo mode moved to AppBar
                 ],
               ),
             ),

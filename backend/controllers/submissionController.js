@@ -129,7 +129,7 @@ const updateSubmissionStatus = async (req, res) => {
       .single();
     if (updErr) throw updErr;
 
-    if (status !== "approved") {
+    if (status !== "accepted") {
       return success(res, { updated: sub, portfolio: null, edupoints: null });
     }
 
@@ -182,7 +182,9 @@ const getSubmissionsByTask = async (req, res) => {
       .order("submit_time", { ascending: false });
 
     if (dbError) throw dbError;
-    success(res, data);
+    // Shape submit_time -> submitted_at for frontend
+    const shaped = (data || []).map((s) => ({ ...s, submitted_at: s.submit_time }));
+    success(res, shaped);
   } catch (e) {
     error(res, e.message, 500);
   }
@@ -203,10 +205,50 @@ const getFilesForSubmission = async (req, res) => {
   }
 };
 
+// Get submissions for a user
+const getSubmissionsByUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { data, error: dbError } = await supabase
+      .from("submissions")
+      .select("*")
+      .eq("user_id", id)
+      .order("submit_time", { ascending: false });
+
+    if (dbError) throw dbError;
+    const shaped = (data || []).map((s) => ({ ...s, submitted_at: s.submit_time }));
+    success(res, shaped);
+  } catch (e) {
+    error(res, e.message, 500);
+  }
+};
+
+// Update only grade and feedback for a submission
+const updateSubmissionGrade = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { grade, feedback } = req.body;
+
+    const { data: sub, error: updErr } = await supabase
+      .from("submissions")
+      .update({ grade, feedback })
+      .eq("submission_id", id)
+      .select()
+      .single();
+
+    if (updErr) throw updErr;
+    success(res, { updated: sub });
+  } catch (e) {
+    error(res, e.message, 500);
+  }
+};
+
 module.exports = {
   createSubmission,
   getSubmissionById,
   updateSubmissionStatus,
   getSubmissionsByTask,
   getFilesForSubmission,
+  getSubmissionsByUser,
+  updateSubmissionGrade,
 };

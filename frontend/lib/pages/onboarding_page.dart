@@ -60,8 +60,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
     if (!mounted) return;
 
-    // Navigate to role selection
-    Navigator.pushReplacementNamed(context, '/start');
+    // Navigate to authentication page
+    Navigator.pushReplacementNamed(context, '/auth');
   }
 
   @override

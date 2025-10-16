@@ -6,6 +6,8 @@ const {
   getSubmissionById,
   updateSubmissionStatus,
   getSubmissionsByTask,
+  getSubmissionsByUser,
+  updateSubmissionGrade,
   getFilesForSubmission,
 } = require("../controllers/submissionController");
 
@@ -23,5 +25,10 @@ router.patch("/:id/status", updateSubmissionStatus);
 
 // Get files for a submission
 router.get("/:id/files", getFilesForSubmission);
+
+// Additional endpoints used by frontend providers
+router.get("/task/:id", getSubmissionsByTask);
+router.get("/user/:id", getSubmissionsByUser);
+router.patch("/:id/grade", updateSubmissionGrade);
 
 module.exports = router;

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'app.dart';
 import 'providers/providers.dart';
@@ -14,6 +15,14 @@ Future<void> main() async {
   try {
     // ignore: avoid_print
     print('[main] Starting app init');
+    try {
+      await dotenv.load(fileName: ".env");
+      // ignore: avoid_print
+      print('[main] .env loaded');
+    } catch (e) {
+      // ignore: avoid_print
+      print('[main] .env not found or failed to load: $e');
+    }
     await AuthService.initIfConfigured();
   } catch (e, st) {
     // ignore: avoid_print
