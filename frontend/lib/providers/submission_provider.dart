@@ -58,7 +58,8 @@ class SubmissionProvider extends ChangeNotifier {
   Future<bool> uploadSubmission({
     required String taskId,
     required String userId,
-    required dynamic fileBytes,
+    List<int>? fileBytes,
+    String? filePath,
     required String fileName,
   }) async {
     try {
@@ -76,10 +77,15 @@ class SubmissionProvider extends ChangeNotifier {
       request.fields['task_id'] = taskId;
       request.fields['user_id'] = userId;
 
-      // Add file to request
+      // Add file to request (prefer bytes; fallback to path)
       if (fileBytes != null) {
         final multipartFile = http.MultipartFile.fromBytes('file', fileBytes, filename: path.basename(fileName));
         request.files.add(multipartFile);
+      } else if (filePath != null && filePath.isNotEmpty) {
+        final multipartFile = await http.MultipartFile.fromPath('file', filePath, filename: path.basename(fileName));
+        request.files.add(multipartFile);
+      } else {
+        throw Exception('No file data found');
       }
 
       final streamedResponse = await request.send();

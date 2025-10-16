@@ -1,6 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../models/user_model.dart';
+import '../providers/auth_provider.dart';
+import '../providers/edupoints_provider.dart';
+import '../providers/portfolio_provider.dart';
+import '../providers/submission_provider.dart';
+import '../providers/task_provider.dart';
 import '../services/api_client.dart';
+import '../theme/app_theme.dart';
+import '../widgets/common/app_button.dart';
+import '../widgets/dashboard/edupoints_card.dart';
+import '../widgets/layout/app_scaffold.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key, this.userId});
@@ -13,86 +24,563 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final api = ApiClient();
-  // Map<String, dynamic>? user;
   final skillsCtrl = TextEditingController();
-  Map<String, dynamic>? me;
+  Map<String, dynamic>? user;
+  UserModel? currentUser;
   bool loading = true;
+  bool isEditing = false;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _loadUserData();
   }
 
-  Future<void> _load() async {
+  Future<void> _loadUserData() async {
     setState(() => loading = true);
     try {
-      // ignore: avoid_print
-      print('[Dashboard] Loading current user and edupoints');
-      // Demo mode: try to pick a user by desired role; if none exists, create one
-      final desiredRole = 'student';
-      final users = await api.get('/users');
-      final list = (users['data'] as List?) ?? [];
-      final candidates = list.where((u) => (u as Map)['role'] == desiredRole).toList();
-      if (candidates.isNotEmpty) {
-        me = candidates.first as Map<String, dynamic>;
-      } else {
-        // create demo user for this role
-        final millis = DateTime.now().millisecondsSinceEpoch;
-        final created = await api.post(
-          '/users',
-          body: {
-            'name': 'Demo ${desiredRole[0].toUpperCase()}${desiredRole.substring(1)}',
-            'email': 'demo_${desiredRole}_$millis@example.com',
-            'role': desiredRole,
-          },
-        );
-        me = created['data'] as Map<String, dynamic>?;
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final edupointsProvider = Provider.of<EdupointsProvider>(context, listen: false);
+      final portfolioProvider = Provider.of<PortfolioProvider>(context, listen: false);
+      final submissionProvider = Provider.of<SubmissionProvider>(context, listen: false);
+
+      final targetUserId = widget.userId?.toString() ?? authProvider.currentUser?.userId;
+
+      if (targetUserId != null) {
+        final userRes = await api.get('/users/$targetUserId');
+        user = userRes['data'] as Map<String, dynamic>?;
+        currentUser = authProvider.currentUser;
+
+        // Load provider data only once in initState if this is the user's own profile
+        final isOwnProfile = targetUserId == authProvider.currentUser?.userId;
+        if (isOwnProfile && authProvider.currentUser != null) {
+          edupointsProvider.loadEdupoints(targetUserId);
+          portfolioProvider.loadPortfolio(targetUserId);
+          submissionProvider.loadUserSubmissions(targetUserId);
+        }
       }
-    } catch (_) {
-      // ignore in minimal UI
+    } catch (e) {
       // ignore: avoid_print
-      print('[Dashboard] Failed to load user/edupoints');
+      print('Failed to load user data: $e');
     } finally {
       if (mounted) setState(() => loading = false);
     }
   }
 
-  Future<void> _saveSkills(userId) async {
+  Future<void> _saveSkills() async {
     final skills = skillsCtrl.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-    await api.patch('/users/$userId/skills', body: {'skills': skills});
+    final userId = user?['user_id'];
+
+    if (userId != null) {
+      await api.patch('/users/$userId/skills', body: {'skills': skills});
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Skills updated')));
+      setState(() {
+        user?['skills'] = skills;
+        isEditing = false;
+      });
+    }
+  }
+
+  Future<void> _logout() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    await authProvider.signOut();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Skills updated')));
+    Navigator.pushNamedAndRemoveUntil(context, '/auth', (_) => false);
+  }
+
+  @override
+  void dispose() {
+    skillsCtrl.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final userId = widget.userId ?? ModalRoute.of(context)?.settings.arguments;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    final authProvider = Provider.of<AuthProvider>(context);
+    final edupointsProvider = Provider.of<EdupointsProvider>(context);
+    final portfolioProvider = Provider.of<PortfolioProvider>(context);
+    final submissionProvider = Provider.of<SubmissionProvider>(context);
+
+    final isOwnProfile = widget.userId?.toString() == authProvider.currentUser?.userId;
+    final role = user?['role'] ?? authProvider.currentUser?.role ?? 'student';
+
+    return AppScaffold(
+      title: isOwnProfile ? 'My Profile' : 'Profile',
+      currentIndex: role == 'student' ? 4 : 3, // Different index based on role
+      body: RefreshIndicator(
+        onRefresh: _loadUserData,
+        child: loading
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
+                padding: const EdgeInsets.all(16),
                 children: [
-                  Text(me?['name'] ?? ''),
-                  Text(me?['email'] ?? ''),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: skillsCtrl,
-                    decoration: const InputDecoration(labelText: 'Skills (comma separated)'),
-                  ),
-                  const SizedBox(height: 8),
-                  FilledButton(
-                    onPressed: () => _saveSkills(userId ?? me?['user_id']),
-                    child: const Text('Save Skills'),
-                  ),
+                  // Profile Header
+                  _buildProfileHeader(),
+
+                  const SizedBox(height: 24),
+
+                  // Role-specific content
+                  if (role == 'student') ...[
+                    // Edupoints Card (for students only)
+                    if (isOwnProfile &&
+                        edupointsProvider.status == EdupointsLoadStatus.loaded &&
+                        edupointsProvider.edupoints != null)
+                      EdupointsCard(
+                        balance: edupointsProvider.balance,
+                        transactions: edupointsProvider.transactions.take(3).toList(),
+                      ),
+
+                    const SizedBox(height: 24),
+
+                    // Student Statistics
+                    _buildStudentStats(portfolioProvider, submissionProvider),
+
+                    const SizedBox(height: 24),
+
+                    // Skills Section (for students only)
+                    _buildSkillsSection(),
+                  ] else if (role == 'company') ...[
+                    // Company Statistics
+                    _buildCompanyStats(),
+
+                    const SizedBox(height: 24),
+
+                    // Company Description
+                    _buildCompanyDescription(),
+                  ],
+
+                  const SizedBox(height: 24),
+
+                  // Account Actions (for own profile only)
+                  if (isOwnProfile) ...[_buildAccountActions(), const SizedBox(height: 24)],
+
+                  // User Info
+                  _buildUserInfo(),
                 ],
               ),
-            ),
+      ),
     );
+  }
+
+  Widget _buildProfileHeader() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: AppTheme.primaryGradient,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          // Avatar
+          CircleAvatar(
+            radius: 40,
+            backgroundColor: Colors.white,
+            child: Text(
+              user?['name']?.toString()[0].toUpperCase() ?? '?',
+              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppTheme.primaryColor),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Name and Role
+          Text(
+            user?['name'] ?? 'Unknown User',
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(12)),
+            child: Text(
+              _formatRole(user?['role'] ?? 'student'),
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(user?['email'] ?? '', style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStudentStats(PortfolioProvider portfolioProvider, SubmissionProvider submissionProvider) {
+    final portfolioEntries = portfolioProvider.entries;
+    final submissions = submissionProvider.submissions;
+    final completedTasks = portfolioEntries.length;
+    final totalSubmissions = submissions.length;
+    final avgGrade = _calculateAverageGrade();
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Statistics', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _StatItem(
+                    title: 'Tasks Completed',
+                    value: completedTasks.toString(),
+                    icon: Icons.task_alt,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+                Expanded(
+                  child: _StatItem(
+                    title: 'Submissions',
+                    value: totalSubmissions.toString(),
+                    icon: Icons.upload_file,
+                    color: AppTheme.secondaryColor,
+                  ),
+                ),
+                Expanded(
+                  child: _StatItem(
+                    title: 'Avg. Grade',
+                    value: avgGrade != null ? '$avgGrade%' : 'N/A',
+                    icon: Icons.grade,
+                    color: AppTheme.accentColor,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompanyStats() {
+    final taskProvider = Provider.of<TaskProvider>(context);
+    final submissionProvider = Provider.of<SubmissionProvider>(context);
+
+    // Calculate company stats
+    final tasksPosted = taskProvider.tasks.where((t) => t.postedBy == user?['user_id']).length;
+    final submissionsReceived = submissionProvider.submissions.length;
+    final pendingReviews = submissionProvider.submissions.where((s) => s.grade == null).length;
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Company Statistics',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _StatItem(
+                    title: 'Tasks Posted',
+                    value: tasksPosted.toString(),
+                    icon: Icons.post_add,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+                Expanded(
+                  child: _StatItem(
+                    title: 'Submissions',
+                    value: submissionsReceived.toString(),
+                    icon: Icons.assignment_turned_in,
+                    color: AppTheme.secondaryColor,
+                  ),
+                ),
+                Expanded(
+                  child: _StatItem(
+                    title: 'Pending Review',
+                    value: pendingReviews.toString(),
+                    icon: Icons.pending_actions,
+                    color: AppTheme.warning,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompanyDescription() {
+    final description = user?['description'] as String? ?? 'No company description available.';
+    final isOwnProfile = widget.userId?.toString() == Provider.of<AuthProvider>(context).currentUser?.userId;
+    final descriptionCtrl = TextEditingController(text: description);
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'About Company',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                if (isOwnProfile)
+                  IconButton(
+                    onPressed: () => setState(() => isEditing = !isEditing),
+                    icon: Icon(isEditing ? Icons.close : Icons.edit),
+                    tooltip: isEditing ? 'Cancel editing' : 'Edit description',
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (isEditing && isOwnProfile)
+              Column(
+                children: [
+                  TextField(
+                    controller: descriptionCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Company Description',
+                      hintText: 'Tell students about your company...',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 5,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: AppButton(
+                          text: 'Save',
+                          onPressed: () async {
+                            // Save company description
+                            final userId = user?['user_id'];
+                            if (userId != null) {
+                              await api.patch('/users/$userId', body: {'description': descriptionCtrl.text});
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(
+                                context,
+                              ).showSnackBar(const SnackBar(content: Text('Company description updated')));
+                              setState(() {
+                                user?['description'] = descriptionCtrl.text;
+                                isEditing = false;
+                              });
+                            }
+                          },
+                          type: AppButtonType.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: AppButton(
+                          text: 'Cancel',
+                          onPressed: () => setState(() => isEditing = false),
+                          type: AppButtonType.secondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            else
+              Text(description, style: Theme.of(context).textTheme.bodyMedium),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkillsSection() {
+    final skills = user?['skills'] as List<dynamic>? ?? [];
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Skills', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                if (widget.userId?.toString() == Provider.of<AuthProvider>(context).currentUser?.userId)
+                  IconButton(
+                    onPressed: () => setState(() => isEditing = !isEditing),
+                    icon: Icon(isEditing ? Icons.close : Icons.edit),
+                    tooltip: isEditing ? 'Cancel editing' : 'Edit skills',
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (isEditing)
+              Column(
+                children: [
+                  TextField(
+                    controller: skillsCtrl..text = skills.join(', '),
+                    decoration: const InputDecoration(
+                      labelText: 'Skills (comma separated)',
+                      hintText: 'e.g. Flutter, React, Python',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 2,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: AppButton(text: 'Save', onPressed: _saveSkills, type: AppButtonType.primary),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: AppButton(
+                          text: 'Cancel',
+                          onPressed: () => setState(() => isEditing = false),
+                          type: AppButtonType.secondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            else if (skills.isEmpty)
+              Text('No skills added yet', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey))
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: skills.map((skill) {
+                  return Chip(
+                    label: Text(skill.toString()),
+                    backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+                    labelStyle: TextStyle(color: AppTheme.primaryColor),
+                  );
+                }).toList(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAccountActions() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Account', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.logout, color: AppTheme.error),
+              title: const Text('Sign Out'),
+              subtitle: const Text('Sign out of your account'),
+              onTap: _logout,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserInfo() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Information', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            _buildInfoRow('User ID', user?['user_id'] ?? ''),
+            _buildInfoRow('Email', user?['email'] ?? ''),
+            _buildInfoRow('Role', _formatRole(user?['role'] ?? 'student')),
+            _buildInfoRow('Member Since', _formatDate(user?['created_at'])),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
+              ),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+
+  Widget _StatItem({required String title, required String value, required IconData icon, required Color color}) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+          child: Icon(icon, color: color, size: 24),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: color),
+        ),
+        const SizedBox(height: 4),
+        Text(title, style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.center),
+      ],
+    );
+  }
+
+  String _formatRole(String role) {
+    return role[0].toUpperCase() + role.substring(1);
+  }
+
+  String _formatDate(dynamic dateValue) {
+    if (dateValue == null) return 'Unknown';
+    try {
+      final date = DateTime.parse(dateValue.toString());
+      return '${date.day}/${date.month}/${date.year}';
+    } catch (e) {
+      return 'Unknown';
+    }
+  }
+
+  double? _calculateAverageGrade() {
+    final portfolioProvider = Provider.of<PortfolioProvider>(context);
+    final entries = portfolioProvider.entries;
+    final gradedEntries = entries.where((e) => e.submission.grade != null).toList();
+
+    if (gradedEntries.isEmpty) return null;
+
+    final sum = gradedEntries.fold<int>(0, (sum, entry) => sum + (entry.submission.grade ?? 0));
+    return (sum / gradedEntries.length).roundToDouble();
   }
 }
 

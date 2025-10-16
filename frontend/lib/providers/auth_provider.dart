@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:frontend/config.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user_model.dart';
 import '../services/api_client.dart';
@@ -22,7 +24,16 @@ class AuthProvider extends ChangeNotifier {
   bool get isAuthenticated => _status == AuthStatus.authenticated;
 
   AuthProvider() {
-    _initAuth();
+    // Delay initialization until Supabase is ready to avoid "Supabase should be initialized" errors
+    Future.microtask(() async {
+      if (!supabaseReady) {
+        // Poll briefly until initialization completes
+        while (!supabaseReady) {
+          await Future.delayed(const Duration(milliseconds: 20));
+        }
+      }
+      await _initAuth();
+    });
   }
 
   Future<void> _initAuth() async {
@@ -30,7 +41,6 @@ class AuthProvider extends ChangeNotifier {
       _status = AuthStatus.loading;
       notifyListeners();
 
-      await AuthService.initIfConfigured();
       _subscribeToAuthChanges();
       _token = AuthService.currentToken;
 
@@ -47,17 +57,26 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void _subscribeToAuthChanges() {
-    if (!AuthService.isInitialized) return;
+    if (!supabaseReady) return;
     _authSub?.cancel();
     _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((event) async {
       final session = event.session;
       if (session != null) {
         _token = session.accessToken;
         await _fetchCurrentUser();
+        // Persist login flag
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('logged_in', true);
+        } catch (_) {}
       } else {
         _token = null;
         _currentUser = null;
         _status = AuthStatus.unauthenticated;
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('logged_in', false);
+        } catch (_) {}
         notifyListeners();
       }
     });
@@ -90,6 +109,10 @@ class AuthProvider extends ChangeNotifier {
 
       if (_token != null) {
         await _fetchCurrentUser();
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('logged_in', true);
+        } catch (_) {}
         return true;
       } else {
         _status = AuthStatus.unauthenticated;
@@ -119,6 +142,10 @@ class AuthProvider extends ChangeNotifier {
         await api.post('/users', body: {'name': name.isEmpty ? email : name, 'email': email, 'role': role});
 
         await _fetchCurrentUser();
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('logged_in', true);
+        } catch (_) {}
         return true;
       } else {
         _status = AuthStatus.unauthenticated;
@@ -139,13 +166,17 @@ class AuthProvider extends ChangeNotifier {
       _status = AuthStatus.loading;
       notifyListeners();
 
-      if (AuthService.isInitialized) {
+      if (supabaseReady) {
         await Supabase.instance.client.auth.signOut();
       }
 
       _token = null;
       _currentUser = null;
       _status = AuthStatus.unauthenticated;
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('logged_in', false);
+      } catch (_) {}
     } catch (e) {
       _errorMessage = e.toString();
     }

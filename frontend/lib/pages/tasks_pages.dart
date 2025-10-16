@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/submission_provider.dart';
 import '../providers/task_provider.dart';
 import '../widgets/common/app_button.dart';
 import '../widgets/layout/app_scaffold.dart';
@@ -16,15 +17,22 @@ class TaskListPage extends StatefulWidget {
   State<TaskListPage> createState() => _TaskListPageState();
 }
 
-class _TaskListPageState extends State<TaskListPage> {
+class CompanyTasksPage extends StatefulWidget {
+  const CompanyTasksPage({super.key, required this.companyId});
+  final dynamic companyId;
+
+  @override
+  State<CompanyTasksPage> createState() => _CompanyTasksPageState();
+}
+
+class _CompanyTasksPageState extends State<CompanyTasksPage> {
   @override
   void initState() {
     super.initState();
-    // Load tasks if not already loaded
-    final taskProvider = Provider.of<TaskProvider>(context, listen: false);
-    if (taskProvider.status == TaskLoadStatus.initial) {
-      taskProvider.loadTasks();
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final taskProvider = Provider.of<TaskProvider>(context, listen: false);
+      taskProvider.loadCompanyTasks(widget.companyId.toString());
+    });
   }
 
   @override
@@ -33,19 +41,20 @@ class _TaskListPageState extends State<TaskListPage> {
     final filteredTasks = taskProvider.filteredTasks;
 
     return AppScaffold(
-      title: 'Tasks',
-      currentIndex: 1,
+      title: 'Company Tasks',
+      showBottomNav: false,
       body: Column(
         children: [
           const TaskFilterBar(),
-
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () => taskProvider.loadTasks(),
+              onRefresh: () => taskProvider.loadCompanyTasks(widget.companyId.toString()),
               child: Builder(
                 builder: (context) {
                   if (taskProvider.status == TaskLoadStatus.loading) {
                     return const Center(child: CircularProgressIndicator());
+                  } else if (taskProvider.status == TaskLoadStatus.error) {
+                    return _buildErrorState(taskProvider.errorMessage);
                   } else if (filteredTasks.isEmpty) {
                     return _buildEmptyState();
                   } else {
@@ -77,12 +86,144 @@ class _TaskListPageState extends State<TaskListPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.search_off, size: 64, color: Colors.grey.shade400),
+            Icon(Icons.folder_off, size: 64, color: Colors.grey.shade400),
             const SizedBox(height: 16),
-            Text('No tasks found', style: Theme.of(context).textTheme.titleLarge),
+            Text('No tasks for this company', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(
-              'Try adjusting your filters or check back later for new tasks',
+              'This company has not posted any tasks yet.',
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(String? message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, size: 64, color: Colors.redAccent),
+            const SizedBox(height: 16),
+            Text('Failed to load tasks', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Text(
+              message ?? 'Please try again later.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            AppButton(
+              text: 'Retry',
+              onPressed: () =>
+                  Provider.of<TaskProvider>(context, listen: false).loadCompanyTasks(widget.companyId.toString()),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TaskListPageState extends State<TaskListPage> {
+  @override
+  void initState() {
+    super.initState();
+    // Load tasks after first frame to avoid notifyListeners during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final taskProvider = Provider.of<TaskProvider>(context, listen: false);
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+      if (taskProvider.status == TaskLoadStatus.initial) {
+        // Load appropriate tasks based on role
+        if (authProvider.currentUser?.role == 'company') {
+          taskProvider.loadCompanyTasks(authProvider.currentUser!.userId);
+        } else {
+          taskProvider.loadTasks();
+        }
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final taskProvider = Provider.of<TaskProvider>(context);
+    final authProvider = Provider.of<AuthProvider>(context);
+    final filteredTasks = taskProvider.filteredTasks;
+    final role = authProvider.currentUser?.role ?? 'student';
+    final isCompany = role == 'company';
+
+    return AppScaffold(
+      title: isCompany ? 'Manage Tasks' : 'Available Tasks',
+      currentIndex: 1,
+      floatingActionButton: isCompany
+          ? FloatingActionButton(
+              onPressed: () =>
+                  Navigator.pushNamed(context, '/tasks/create', arguments: authProvider.currentUser?.userId),
+              child: const Icon(Icons.add),
+              tooltip: 'Create New Task',
+            )
+          : null,
+      body: Column(
+        children: [
+          const TaskFilterBar(),
+
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () => isCompany
+                  ? taskProvider.loadCompanyTasks(authProvider.currentUser!.userId)
+                  : taskProvider.loadTasks(),
+              child: Builder(
+                builder: (context) {
+                  if (taskProvider.status == TaskLoadStatus.loading) {
+                    return const Center(child: CircularProgressIndicator());
+                  } else if (filteredTasks.isEmpty) {
+                    return _buildEmptyState(isCompany);
+                  } else {
+                    return ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: filteredTasks.length,
+                      itemBuilder: (context, index) {
+                        final task = filteredTasks[index];
+                        return TaskCard(
+                          task: task,
+                          showCompanyActions: isCompany,
+                          onTap: () => Navigator.pushNamed(context, '/tasks/detail', arguments: task.taskId),
+                        );
+                      },
+                    );
+                  }
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(bool isCompany) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(isCompany ? Icons.post_add : Icons.search_off, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text(isCompany ? 'No tasks posted yet' : 'No tasks found', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Text(
+              isCompany
+                  ? 'Create your first task to start receiving submissions from students'
+                  : 'Try adjusting your filters or check back later for new tasks',
               textAlign: TextAlign.center,
               style: Theme.of(
                 context,
@@ -90,9 +231,16 @@ class _TaskListPageState extends State<TaskListPage> {
             ),
             const SizedBox(height: 24),
             AppButton(
-              text: 'Clear Filters',
-              onPressed: () => Provider.of<TaskProvider>(context, listen: false).clearFilters(),
-              type: AppButtonType.secondary,
+              text: isCompany ? 'Create Task' : 'Clear Filters',
+              icon: isCompany ? Icons.add : Icons.filter_alt_off,
+              onPressed: () => isCompany
+                  ? Navigator.pushNamed(
+                      context,
+                      '/tasks/create',
+                      arguments: Provider.of<AuthProvider>(context, listen: false).currentUser?.userId,
+                    )
+                  : Provider.of<TaskProvider>(context, listen: false).clearFilters(),
+              type: isCompany ? AppButtonType.primary : AppButtonType.secondary,
             ),
           ],
         ),
@@ -126,7 +274,10 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     final taskProvider = Provider.of<TaskProvider>(context);
     final authProvider = Provider.of<AuthProvider>(context);
     final task = taskProvider.selectedTask;
-    final isStudent = authProvider.currentUser?.role == 'student';
+    final role = authProvider.currentUser?.role ?? 'student';
+    final isStudent = role == 'student';
+    final isCompany = role == 'company';
+    final isTaskOwner = isCompany && task?.postedBy == authProvider.currentUser?.userId;
 
     return AppScaffold(
       title: 'Task Details',
@@ -154,14 +305,99 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                           const SizedBox(height: 8),
                           Text(task.description, style: Theme.of(context).textTheme.bodyLarge),
                           const SizedBox(height: 32),
-                          if (isStudent)
-                            AppButton(
-                              text: 'Submit Solution',
-                              icon: Icons.upload_file,
-                              isFullWidth: true,
-                              onPressed: () =>
-                                  Navigator.pushNamed(context, '/submissions/create', arguments: task.taskId),
+
+                          // Role-specific actions
+                          if (isStudent) ...[
+                            // Check if student has already submitted a solution
+                            FutureBuilder<bool>(
+                              future: _hasSubmitted(task.taskId),
+                              builder: (context, snapshot) {
+                                final hasSubmitted = snapshot.data ?? false;
+
+                                return hasSubmitted
+                                    ? Column(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(16),
+                                            decoration: BoxDecoration(
+                                              color: Colors.green.withOpacity(0.1),
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: Colors.green.withOpacity(0.3)),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                const Icon(Icons.check_circle, color: Colors.green),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Text(
+                                                    'You have already submitted a solution for this task',
+                                                    style: TextStyle(color: Colors.green),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(height: 16),
+                                          AppButton(
+                                            text: 'View Your Submission',
+                                            icon: Icons.visibility,
+                                            isFullWidth: true,
+                                            onPressed: () => Navigator.pushNamed(context, '/submissions'),
+                                          ),
+                                        ],
+                                      )
+                                    : AppButton(
+                                        text: 'Submit Solution',
+                                        icon: Icons.upload_file,
+                                        isFullWidth: true,
+                                        onPressed: () =>
+                                            Navigator.pushNamed(context, '/submissions/create', arguments: task.taskId),
+                                      );
+                              },
                             ),
+                          ] else if (isTaskOwner) ...[
+                            // Company actions for their own task
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: AppButton(
+                                    text: 'Edit Task',
+                                    icon: Icons.edit,
+                                    type: AppButtonType.secondary,
+                                    onPressed: () {
+                                      // TODO: Implement task editing
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(const SnackBar(content: Text('Task editing coming soon')));
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: AppButton(
+                                    text: 'View Submissions',
+                                    icon: Icons.assignment_turned_in,
+                                    onPressed: () =>
+                                        Navigator.pushNamed(context, '/submissions/review', arguments: task.taskId),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ] else if (isCompany) ...[
+                            // Other companies can't submit or edit
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                              ),
+                              child: const Text(
+                                'This task was posted by another company. You can view details but cannot submit solutions or edit it.',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -170,6 +406,20 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
               ),
       ),
     );
+  }
+
+  Future<bool> _hasSubmitted(String taskId) async {
+    final submissionProvider = Provider.of<SubmissionProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userId = authProvider.currentUser?.userId;
+
+    if (userId == null) return false;
+
+    // Check if submissions are already loaded
+    await submissionProvider.loadUserSubmissions(userId);
+
+    // Check if user has submitted for this task
+    return submissionProvider.submissions.any((s) => s.taskId == taskId);
   }
 }
 

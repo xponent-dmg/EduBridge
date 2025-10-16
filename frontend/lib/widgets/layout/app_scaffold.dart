@@ -4,6 +4,18 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import 'bottom_nav_bar.dart';
 
+class ExternalNavScope extends InheritedWidget {
+  final bool hasBottomNav;
+  const ExternalNavScope({super.key, required this.hasBottomNav, required Widget child}) : super(child: child);
+
+  static ExternalNavScope? maybeOf(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<ExternalNavScope>();
+  }
+
+  @override
+  bool updateShouldNotify(covariant ExternalNavScope oldWidget) => hasBottomNav != oldWidget.hasBottomNav;
+}
+
 class AppScaffold extends StatelessWidget {
   final Widget body;
   final String title;
@@ -34,12 +46,15 @@ class AppScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final userRole = authProvider.currentUser?.role ?? 'student';
+    final externalBottomNav = ExternalNavScope.maybeOf(context)?.hasBottomNav ?? false;
 
     return Scaffold(
       appBar: customAppBar ?? AppBar(title: Text(title), automaticallyImplyLeading: showBackButton, actions: actions),
       drawer: drawer,
       body: SafeArea(child: body),
-      bottomNavigationBar: showBottomNav ? AppBottomNavBar(currentIndex: currentIndex, userRole: userRole) : null,
+      bottomNavigationBar: (showBottomNav && !externalBottomNav)
+          ? AppBottomNavBar(currentIndex: currentIndex, userRole: userRole)
+          : null,
       floatingActionButton: floatingActionButton,
       floatingActionButtonLocation: floatingActionButtonLocation,
     );

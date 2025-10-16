@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../models/task_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/edupoints_provider.dart';
+import '../providers/portfolio_provider.dart';
+import '../providers/submission_provider.dart';
 import '../providers/task_provider.dart';
 import '../providers/user_provider.dart';
 import '../theme/app_theme.dart';
@@ -25,27 +27,20 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    // Defer provider-triggered loads to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
   }
 
   Future<void> _loadData() async {
     final taskProvider = Provider.of<TaskProvider>(context, listen: false);
-    final edupointsProvider = Provider.of<EdupointsProvider>(context, listen: false);
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     // Load tasks
     taskProvider.loadTasks();
-
-    // Load edupoints if we have a user
-    if (authProvider.currentUser != null) {
-      edupointsProvider.loadEdupoints(authProvider.currentUser!.userId);
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
-    final edupointsProvider = Provider.of<EdupointsProvider>(context);
     final taskProvider = Provider.of<TaskProvider>(context);
 
     final user = authProvider.currentUser;
@@ -62,16 +57,6 @@ class _DashboardPageState extends State<DashboardPage> {
           children: [
             WelcomeHeader(name: user?.name ?? 'Guest', role: role),
 
-            // Edupoints Card
-            if (edupointsProvider.status == EdupointsLoadStatus.loaded && edupointsProvider.edupoints != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: EdupointsCard(
-                  balance: edupointsProvider.balance,
-                  transactions: edupointsProvider.transactions.take(3).toList(),
-                ),
-              ),
-
             // Role-specific sections
             if (role == 'student') _buildStudentSection(taskProvider),
             if (role == 'company') _buildCompanySection(context, user?.userId),
@@ -84,10 +69,94 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Widget _buildStudentSection(TaskProvider taskProvider) {
     final tasks = taskProvider.tasks;
+    final submissionProvider = Provider.of<SubmissionProvider>(context);
+    final portfolioProvider = Provider.of<PortfolioProvider>(context);
+    final edupointsProvider = Provider.of<EdupointsProvider>(context);
+
+    // Calculate quick stats
+    final totalSubmissions = submissionProvider.submissions.length;
+    final pendingSubmissions = submissionProvider.submissions.where((s) => s.grade == null).length;
+    final approvedSubmissions = submissionProvider.submissions.where((s) => s.grade != null && s.grade! >= 60).length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Quick Stats Cards
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            'Your Progress',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: StatsCard(
+                  title: 'Submissions',
+                  value: totalSubmissions.toString(),
+                  icon: Icons.upload_file,
+                  color: AppTheme.primaryColor,
+                  onTap: () => Navigator.pushNamed(context, '/submissions'),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: StatsCard(
+                  title: 'Pending',
+                  value: pendingSubmissions.toString(),
+                  icon: Icons.hourglass_empty,
+                  color: AppTheme.warning,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: StatsCard(
+                  title: 'Approved',
+                  value: approvedSubmissions.toString(),
+                  icon: Icons.check_circle,
+                  color: AppTheme.success,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: StatsCard(
+                  title: 'Portfolio',
+                  value: portfolioProvider.entries.length.toString(),
+                  icon: Icons.work_outline,
+                  color: AppTheme.accentColor,
+                  onTap: () => Navigator.pushNamed(context, '/portfolio'),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // EduPoints Card
+        if (edupointsProvider.status == EdupointsLoadStatus.loaded && edupointsProvider.edupoints != null) ...[
+          const SizedBox(height: 24),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: EdupointsCard(
+              balance: edupointsProvider.balance,
+              transactions: edupointsProvider.transactions.take(3).toList(),
+            ),
+          ),
+        ],
+
+        // Available Tasks Section
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
           child: Row(
@@ -114,7 +183,7 @@ class _DashboardPageState extends State<DashboardPage> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: tasks.length > 5 ? 5 : tasks.length,
+            itemCount: tasks.length > 3 ? 3 : tasks.length, // Show fewer tasks to make room for stats
             itemBuilder: (context, index) {
               final task = TaskModel.fromJson(tasks[index].toJson());
               return TaskCard(
@@ -128,13 +197,23 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _buildCompanySection(BuildContext context, String? companyId) {
+    final taskProvider = Provider.of<TaskProvider>(context);
+    final submissionProvider = Provider.of<SubmissionProvider>(context);
+
+    // Calculate stats
+    final totalTasks = taskProvider.tasks.where((t) => t.postedBy == companyId).length;
+    final totalSubmissions = submissionProvider.submissions.length;
+    final pendingReviews = submissionProvider.submissions.where((s) => s.grade == null).length;
+    final reviewedSubmissions = totalSubmissions - pendingReviews;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Stats Overview
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Text(
-            'Company Tools',
+            'Dashboard Overview',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
         ),
@@ -145,42 +224,189 @@ class _DashboardPageState extends State<DashboardPage> {
             children: [
               Expanded(
                 child: StatsCard(
-                  title: 'Post Task',
-                  value: 'Create',
-                  icon: Icons.add_task,
+                  title: 'Tasks Posted',
+                  value: totalTasks.toString(),
+                  icon: Icons.task_alt,
                   color: AppTheme.primaryColor,
-                  onTap: () => Navigator.pushNamed(context, '/tasks/create', arguments: companyId),
+                  onTap: () => Navigator.pushNamed(context, '/company/tasks', arguments: companyId),
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: StatsCard(
-                  title: 'My Tasks',
-                  value: 'View',
-                  icon: Icons.list_alt,
+                  title: 'Submissions',
+                  value: totalSubmissions.toString(),
+                  icon: Icons.upload_file,
                   color: AppTheme.secondaryColor,
-                  onTap: () => Navigator.pushNamed(context, '/company/tasks', arguments: companyId),
+                  onTap: () => Navigator.pushNamed(context, '/submissions/review'),
                 ),
               ),
             ],
           ),
         ),
 
+        const SizedBox(height: 16),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: StatsCard(
+                  title: 'Pending Review',
+                  value: pendingReviews.toString(),
+                  icon: Icons.pending_actions,
+                  color: AppTheme.warning,
+                  onTap: () => Navigator.pushNamed(context, '/submissions/review'),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: StatsCard(
+                  title: 'Reviewed',
+                  value: reviewedSubmissions.toString(),
+                  icon: Icons.grading,
+                  color: AppTheme.success,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Quick Actions
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
           child: Text(
-            'Recent Submissions',
+            'Quick Actions',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
         ),
 
-        // Placeholder for submissions
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-          child: Center(child: Text('No submissions to review yet')),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: AppTheme.primaryColor.withOpacity(0.1), shape: BoxShape.circle),
+                      child: const Icon(Icons.add_task, color: AppTheme.primaryColor),
+                    ),
+                    title: const Text('Create New Task'),
+                    subtitle: const Text('Post a new task for students'),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () => Navigator.pushNamed(context, '/tasks/create', arguments: companyId),
+                  ),
+                  const Divider(),
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.secondaryColor.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.grading, color: AppTheme.secondaryColor),
+                    ),
+                    title: const Text('Review Submissions'),
+                    subtitle: const Text('Grade and provide feedback'),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () => Navigator.pushNamed(context, '/submissions/review'),
+                  ),
+                  const Divider(),
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: AppTheme.accentColor.withOpacity(0.1), shape: BoxShape.circle),
+                      child: const Icon(Icons.list_alt, color: AppTheme.accentColor),
+                    ),
+                    title: const Text('Manage Tasks'),
+                    subtitle: const Text('View and edit your tasks'),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () => Navigator.pushNamed(context, '/company/tasks', arguments: companyId),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
+
+        // Recent Submissions
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Recent Submissions',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pushNamed(context, '/submissions/review'),
+                child: const Text('View All'),
+              ),
+            ],
+          ),
+        ),
+
+        if (submissionProvider.status == SubmissionLoadStatus.loading)
+          const Center(child: CircularProgressIndicator())
+        else if (submissionProvider.submissions.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            child: Center(child: Text('No submissions to review yet')),
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: submissionProvider.submissions.length > 3 ? 3 : submissionProvider.submissions.length,
+                separatorBuilder: (context, index) => const Divider(),
+                itemBuilder: (context, index) {
+                  final submission = submissionProvider.submissions[index];
+                  return ListTile(
+                    title: Text('Submission #${submission.submissionId.substring(0, 8)}'),
+                    subtitle: Text('Submitted: ${_formatDate(submission.submittedAt)}'),
+                    trailing: submission.grade == null
+                        ? const Chip(label: Text('Pending'), backgroundColor: Colors.amber)
+                        : Chip(
+                            label: Text('${submission.grade}%'),
+                            backgroundColor: _getGradeColor(submission.grade!),
+                            labelStyle: const TextStyle(color: Colors.white),
+                          ),
+                    onTap: () => Navigator.pushNamed(context, '/submissions/review', arguments: submission.taskId),
+                  );
+                },
+              ),
+            ),
+          ),
       ],
     );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  Color _getGradeColor(int grade) {
+    if (grade >= 80) {
+      return Colors.green;
+    } else if (grade >= 60) {
+      return Colors.blue;
+    } else if (grade >= 40) {
+      return Colors.orange;
+    } else {
+      return Colors.red;
+    }
   }
 
   Widget _buildAdminSection(BuildContext context) {

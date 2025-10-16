@@ -44,6 +44,23 @@ class TaskProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> loadCompanyTasks(String companyId) async {
+    try {
+      _status = TaskLoadStatus.loading;
+      notifyListeners();
+
+      final res = await _apiClient.get('/tasks/company/$companyId');
+      final List taskData = res['data'] as List? ?? [];
+
+      _tasks = taskData.map((task) => TaskModel.fromJson(task)).toList();
+      _status = TaskLoadStatus.loaded;
+    } catch (e) {
+      _status = TaskLoadStatus.error;
+      _errorMessage = e.toString();
+    }
+    notifyListeners();
+  }
+
   Future<void> loadTaskDetails(String taskId) async {
     try {
       _status = TaskLoadStatus.loading;

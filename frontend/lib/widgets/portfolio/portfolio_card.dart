@@ -6,8 +6,9 @@ import '../../theme/app_theme.dart';
 class PortfolioCard extends StatelessWidget {
   final PortfolioEntryModel entry;
   final VoidCallback? onTap;
+  final bool isCompanyView;
 
-  const PortfolioCard({super.key, required this.entry, this.onTap});
+  const PortfolioCard({super.key, required this.entry, this.onTap, this.isCompanyView = false});
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +70,16 @@ class PortfolioCard extends StatelessWidget {
 
                   const SizedBox(height: 16),
 
+                  // Task description (brief)
+                  Text(
+                    task.description,
+                    style: theme.textTheme.bodyMedium,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+
+                  const SizedBox(height: 16),
+
                   // Feedback
                   if (submission.feedback != null && submission.feedback!.isNotEmpty) ...[
                     Text('Feedback:', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
@@ -81,19 +92,54 @@ class PortfolioCard extends StatelessWidget {
                     ),
                   ],
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
 
-                  // Submission date
+                  // Bottom row with date and actions
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Icon(Icons.calendar_today, size: 14, color: theme.colorScheme.onBackground.withOpacity(0.6)),
-                      const SizedBox(width: 4),
-                      Text(
-                        _formatDate(submission.submittedAt),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onBackground.withOpacity(0.6),
-                        ),
+                      // Date
+                      Row(
+                        children: [
+                          Icon(Icons.calendar_today, size: 14, color: theme.colorScheme.onBackground.withOpacity(0.6)),
+                          const SizedBox(width: 4),
+                          Text(
+                            _formatDate(submission.submittedAt),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onBackground.withOpacity(0.6),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // Actions
+                      Row(
+                        children: [
+                          if (isCompanyView)
+                            TextButton.icon(
+                              onPressed: () {
+                                // In a real app, this would open a contact dialog
+                                ScaffoldMessenger.of(
+                                  context,
+                                ).showSnackBar(const SnackBar(content: Text('Contact student feature coming soon')));
+                              },
+                              icon: const Icon(Icons.person, size: 16),
+                              label: const Text('Contact'),
+                              style: TextButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              ),
+                            ),
+                          TextButton.icon(
+                            onPressed: onTap,
+                            icon: const Icon(Icons.visibility, size: 16),
+                            label: const Text('View'),
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

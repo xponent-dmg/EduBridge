@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../config.dart';
 
 import '../theme/app_theme.dart';
 import '../widgets/common/app_button.dart';
@@ -28,17 +29,27 @@ class _OtpAuthPageState extends State<OtpAuthPage> {
       setState(() => errorMessage = 'Enter a valid email');
       return;
     }
+
+    // Check if Supabase is initialized (safe guard)
+    if (!supabaseReady) {
+      setState(() => errorMessage = 'Authentication service not available. Please try demo mode.');
+      return;
+    }
+
     try {
       setState(() {
         sending = true;
         errorMessage = null;
       });
-      await Supabase.instance.client.auth.signInWithOtp(email: email);
+      await Supabase.instance.client.auth.signInWithOtp(
+        email: email,
+        emailRedirectTo: 'io.supabase.flutter://login-callback',
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('OTP sent to your email')));
       Navigator.pushNamed(context, '/auth/verify-otp', arguments: email);
     } catch (e) {
-      if (mounted) setState(() => errorMessage = e.toString());
+      if (mounted) setState(() => errorMessage = 'Failed to send OTP: ${e.toString()}');
     } finally {
       if (mounted) setState(() => sending = false);
     }

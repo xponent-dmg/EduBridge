@@ -53,6 +53,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     // Check if onboarding is completed
     final prefs = await SharedPreferences.getInstance();
     final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
+    final loggedIn = prefs.getBool('logged_in') ?? false;
 
     if (!onboardingCompleted) {
       // Show onboarding first
@@ -60,8 +61,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       return;
     }
 
-    // Check authentication status
-    if (authProvider.status == AuthStatus.authenticated) {
+    // Check authentication status with SharedPreferences guard to avoid race with provider init
+    if (loggedIn || authProvider.status == AuthStatus.authenticated) {
       Navigator.pushReplacementNamed(context, '/dashboard');
     } else {
       Navigator.pushReplacementNamed(context, '/auth');

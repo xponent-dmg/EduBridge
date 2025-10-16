@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-// import 'pages/auth_page.dart';
-import 'pages/otp_auth_page.dart';
+import 'pages/unified_auth_page.dart';
 import 'pages/verify_otp_page.dart';
 import 'pages/forgot_password_page.dart';
-import 'pages/dashboard_page.dart';
+import 'pages/main_navigator.dart';
 import 'pages/onboarding_page.dart';
 import 'pages/profile_admin_pages.dart';
 import 'pages/portfolio_page.dart';
@@ -50,13 +49,21 @@ class MyApp extends StatelessWidget {
         '/auth': (context) {
           // ignore: avoid_print
           print('[Router] /auth');
-          return const OtpAuthPage();
+          return const UnifiedAuthPage();
         },
         '/auth/verify-otp': (context) {
           // ignore: avoid_print
           print('[Router] /auth/verify-otp');
-          final email = ModalRoute.of(context)?.settings.arguments as String?;
-          return VerifyOtpPage(email: email ?? '');
+          final args = ModalRoute.of(context)?.settings.arguments;
+
+          // Handle both String (email only) and Map (sign-up data) arguments
+          if (args is Map<String, dynamic>) {
+            return VerifyOtpPage(signUpData: args);
+          } else if (args is String) {
+            return VerifyOtpPage(email: args);
+          }
+
+          return const VerifyOtpPage(email: '');
         },
         '/auth/forgot': (context) {
           // ignore: avoid_print
@@ -72,13 +79,10 @@ class MyApp extends StatelessWidget {
           if (args is Map && args['role'] != null) {
             // Mock mode
             authProvider.setMockUser(args['role'] as String);
-            return const DashboardPage();
-          } else if (args is String?) {
-            // Legacy token passing
-            return DashboardPage(legacyToken: args);
           }
 
-          return const DashboardPage();
+          // Use MainNavigator for bottom-nav pages (efficient indexed stack)
+          return const MainNavigator();
         },
         '/tasks': (context) {
           // ignore: avoid_print
@@ -96,6 +100,15 @@ class MyApp extends StatelessWidget {
           print('[Router] /tasks/create');
           final companyId = ModalRoute.of(context)?.settings.arguments;
           return CreateTaskPage(companyId: companyId);
+        },
+        '/company/tasks': (context) {
+          // ignore: avoid_print
+          print('[Router] /company/tasks');
+          final companyId = ModalRoute.of(context)?.settings.arguments;
+          if (companyId == null || (companyId is String && companyId.isEmpty)) {
+            return const Scaffold(body: Center(child: Text('Company ID is required')));
+          }
+          return CompanyTasksPage(companyId: companyId);
         },
         '/submissions': (context) {
           // ignore: avoid_print

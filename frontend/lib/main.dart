@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'providers/providers.dart';
-import 'services/auth_service.dart';
+import 'config.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,19 +15,18 @@ Future<void> main() async {
   try {
     // ignore: avoid_print
     print('[main] Starting app init');
-    try {
-      await dotenv.load(fileName: ".env");
-      // ignore: avoid_print
-      print('[main] .env loaded');
-    } catch (e) {
-      // ignore: avoid_print
-      print('[main] .env not found or failed to load: $e');
-    }
-    await AuthService.initIfConfigured();
+
+    print('[main] Initializing Supabase with URL: $supabaseUrl');
+    print('[main] Initializing Supabase with Anon Key: $supabaseAnonKey');
+    await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+    print('[main] Supabase initialized successfully');
   } catch (e, st) {
     // ignore: avoid_print
-    print('[main] Init error: $e\n$st');
+    print('[main] Supabase init error: $e\n$st');
   }
+
+  // Set global flag AFTER initialization completes (success or failure)
+  supabaseReady = true;
 
   // ignore: avoid_print
   print('[main] Running app');

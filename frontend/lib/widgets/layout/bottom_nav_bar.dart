@@ -28,34 +28,35 @@ class AppBottomNavBar extends StatelessWidget {
   }
 
   List<BottomNavigationBarItem> _getNavItems(String role) {
-    final commonItems = [
-      const BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
-      const BottomNavigationBarItem(icon: Icon(Icons.task), label: 'Tasks'),
-    ];
-
     if (role == 'student') {
       return [
-        ...commonItems,
+        const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+        const BottomNavigationBarItem(icon: Icon(Icons.task_alt), label: 'Tasks'),
         const BottomNavigationBarItem(icon: Icon(Icons.upload_file), label: 'Submissions'),
         const BottomNavigationBarItem(icon: Icon(Icons.work_outline), label: 'Portfolio'),
         const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
       ];
     } else if (role == 'company') {
       return [
-        ...commonItems,
-        const BottomNavigationBarItem(icon: Icon(Icons.business), label: 'My Tasks'),
+        const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+        const BottomNavigationBarItem(icon: Icon(Icons.task_alt), label: 'Tasks'),
+        const BottomNavigationBarItem(icon: Icon(Icons.assignment_turned_in), label: 'Submissions'),
         const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
       ];
     } else if (role == 'admin') {
       return [
-        ...commonItems,
+        const BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
+        const BottomNavigationBarItem(icon: Icon(Icons.task), label: 'Tasks'),
         const BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Users'),
         const BottomNavigationBarItem(icon: Icon(Icons.admin_panel_settings), label: 'Admin'),
       ];
     }
 
     // Default
-    return commonItems;
+    return [
+      const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+      const BottomNavigationBarItem(icon: Icon(Icons.task_alt), label: 'Tasks'),
+    ];
   }
 
   void _onItemTapped(BuildContext context, int index, String role) {
@@ -85,10 +86,10 @@ class AppBottomNavBar extends StatelessWidget {
           Navigator.pushReplacementNamed(context, '/dashboard');
           break;
         case 1:
-          Navigator.pushReplacementNamed(context, '/tasks');
+          Navigator.pushReplacementNamed(context, '/tasks/create');
           break;
         case 2:
-          Navigator.pushReplacementNamed(context, '/company/tasks');
+          Navigator.pushReplacementNamed(context, '/submissions/review');
           break;
         case 3:
           Navigator.pushReplacementNamed(context, '/profile');

@@ -20,12 +20,17 @@ class _PortfolioPageState extends State<PortfolioPage> {
   @override
   void initState() {
     super.initState();
-    _loadPortfolio();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadPortfolio());
   }
 
   Future<void> _loadPortfolio() async {
     final portfolioProvider = Provider.of<PortfolioProvider>(context, listen: false);
-    await portfolioProvider.loadPortfolio(widget.userId.toString());
+    final userId = widget.userId?.toString();
+    if (userId == null || userId.isEmpty || userId == 'null') {
+      portfolioProvider.clearError(); // no-op but ensures listeners are aware state is not loading endlessly
+      return;
+    }
+    await portfolioProvider.loadPortfolio(userId);
   }
 
   @override
@@ -33,15 +38,24 @@ class _PortfolioPageState extends State<PortfolioPage> {
     final portfolioProvider = Provider.of<PortfolioProvider>(context);
     final authProvider = Provider.of<AuthProvider>(context);
     final isCurrentUser = widget.userId.toString() == authProvider.currentUser?.userId;
+    final userRole = authProvider.currentUser?.role ?? 'student';
+    final isCompany = userRole == 'company';
+    final isStudent = userRole == 'student';
+
+    // Determine if this is a company viewing a student's portfolio
+    final isCompanyViewingStudentPortfolio = isCompany && !isCurrentUser;
 
     return AppScaffold(
       title: isCurrentUser ? 'My Portfolio' : 'Portfolio',
-      currentIndex: 3,
-      body: RefreshIndicator(onRefresh: _loadPortfolio, child: _buildContent(portfolioProvider)),
+      currentIndex: isStudent ? 3 : -1, // Only students have portfolio in bottom nav
+      body: RefreshIndicator(
+        onRefresh: _loadPortfolio,
+        child: _buildContent(portfolioProvider, isCompanyViewingStudentPortfolio),
+      ),
     );
   }
 
-  Widget _buildContent(PortfolioProvider portfolioProvider) {
+  Widget _buildContent(PortfolioProvider portfolioProvider, bool isCompanyViewingStudentPortfolio) {
     switch (portfolioProvider.status) {
       case PortfolioLoadStatus.loading:
         return const Center(child: CircularProgressIndicator());
@@ -53,7 +67,11 @@ class _PortfolioPageState extends State<PortfolioPage> {
             children: [
               const Icon(Icons.error_outline, size: 48, color: Colors.red),
               const SizedBox(height: 16),
-              Text('Failed to load portfolio: ${portfolioProvider.errorMessage}'),
+              Text(
+                portfolioProvider.errorMessage?.isNotEmpty == true
+                    ? 'Failed to load portfolio: ${portfolioProvider.errorMessage}'
+                    : 'No portfolio available yet',
+              ),
               const SizedBox(height: 16),
               ElevatedButton(onPressed: _loadPortfolio, child: const Text('Try Again')),
             ],
@@ -63,16 +81,16 @@ class _PortfolioPageState extends State<PortfolioPage> {
       case PortfolioLoadStatus.loaded:
         final entries = portfolioProvider.entries;
         if (entries.isEmpty) {
-          return _buildEmptyState();
+          return _buildEmptyState(isCompanyViewingStudentPortfolio);
         }
-        return _buildPortfolioList(entries);
+        return _buildPortfolioList(entries, isCompanyViewingStudentPortfolio);
 
       default:
         return const Center(child: CircularProgressIndicator());
     }
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(bool isCompanyViewingStudentPortfolio) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -84,33 +102,65 @@ class _PortfolioPageState extends State<PortfolioPage> {
             Text('Portfolio is Empty', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(
-              'Complete tasks and add submissions to build your portfolio',
+              isCompanyViewingStudentPortfolio
+                  ? 'This student has not added any projects to their portfolio yet'
+                  : 'Complete tasks and add submissions to build your portfolio',
               textAlign: TextAlign.center,
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color),
             ),
             const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () => Navigator.pushNamed(context, '/tasks'),
-              icon: const Icon(Icons.search),
-              label: const Text('Find Tasks'),
-            ),
+            if (!isCompanyViewingStudentPortfolio)
+              ElevatedButton.icon(
+                onPressed: () => Navigator.pushNamed(context, '/tasks'),
+                icon: const Icon(Icons.search),
+                label: const Text('Find Tasks'),
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildPortfolioList(List<PortfolioEntryModel> entries) {
+  Widget _buildPortfolioList(List<PortfolioEntryModel> entries, bool isCompanyViewingStudentPortfolio) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final userName = authProvider.currentUser?.name ?? 'Student';
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // Stats at the top
         PortfolioStats(entries: entries),
+
+        // Header with action button for students
+        const SizedBox(height: 24),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              isCompanyViewingStudentPortfolio ? '$userName\'s Portfolio' : 'My Portfolio Entries',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            if (!isCompanyViewingStudentPortfolio)
+              TextButton.icon(
+                onPressed: () => Navigator.pushNamed(context, '/submissions'),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Add Entry'),
+              ),
+          ],
+        ),
+
         const SizedBox(height: 16),
-        Text('Portfolio Entries', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        ...entries.map((entry) => PortfolioCard(entry: entry, onTap: () => _showPortfolioEntryDetails(entry))),
+
+        // Portfolio entries
+        ...entries.map(
+          (entry) => PortfolioCard(
+            entry: entry,
+            onTap: () => _showPortfolioEntryDetails(entry),
+            isCompanyView: isCompanyViewingStudentPortfolio,
+          ),
+        ),
       ],
     );
   }
@@ -182,11 +232,11 @@ class _PortfolioPageState extends State<PortfolioPage> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
-                          color: _getGradeColor(entry.submission.grade!),
+                          color: entry.submission.grade != null ? _getGradeColor(entry.submission.grade!) : Colors.grey,
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Text(
-                          '${entry.submission.grade}%',
+                          entry.submission.grade != null ? '${entry.submission.grade}%' : 'N/A',
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                         ),
                       ),
