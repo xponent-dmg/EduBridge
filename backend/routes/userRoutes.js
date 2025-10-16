@@ -7,10 +7,15 @@ const {
   updateUserSkills,
   addUserSkills,
   removeUserSkills,
+  getMe,
 } = require("../controllers/userController");
+const { authenticate } = require("../middleware/authMiddleware");
 
 // Get all users
 router.get("/", getUsers);
+
+// Get current authenticated user
+router.get("/me", authenticate, getMe);
 
 // Create a new user
 router.post("/", createUser);

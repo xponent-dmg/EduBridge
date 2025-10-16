@@ -9,6 +9,38 @@ function error(res, msg, code = 400) {
   return res.status(code).json({ success: false, error: msg });
 }
 
+// Get current authenticated user (based on Supabase JWT)
+const getMe = async (req, res) => {
+  try {
+    const supaUser = req.user;
+    if (!supaUser || !supaUser.email) {
+      return error(res, "Not authenticated", 401);
+    }
+
+    // Lookup the application user by email
+    const { data: user, error: userError } = await supabase
+      .from("users")
+      .select("user_id, name, email, role, created_at")
+      .eq("email", supaUser.email)
+      .single();
+
+    if (userError) throw userError;
+
+    // Fetch skills for the user
+    const { data: skillsRows, error: skillsError } = await supabase
+      .from("user_skills")
+      .select("skill")
+      .eq("user_id", user.user_id);
+
+    if (skillsError) throw skillsError;
+
+    const skills = (skillsRows || []).map((row) => row.skill);
+    success(res, { ...user, skills });
+  } catch (e) {
+    error(res, e.message, 500);
+  }
+};
+
 // Create a new user
 const createUser = async (req, res) => {
   try {
@@ -195,4 +227,5 @@ module.exports = {
   updateUserSkills,
   addUserSkills,
   removeUserSkills,
+  getMe,
 };

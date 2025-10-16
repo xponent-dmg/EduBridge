@@ -43,7 +43,7 @@ exports.authorize = (allowedRoles) => {
 
       // Get user role from database
       const { data: userData, error } = await supabase
-        .from("User")
+        .from("users")
         .select("role")
         .eq("email", req.user.email)
         .single();
