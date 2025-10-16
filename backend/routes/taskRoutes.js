@@ -1,7 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const logger = require("../utils/logger");
-const { createTask, getTasks, getTaskById } = require("../controllers/taskController");
+const {
+  createTask,
+  getTasks,
+  getTaskById,
+  getTasksByCompany,
+} = require("../controllers/taskController");
 const { getSubmissionsByTask } = require("../controllers/submissionController");
 
 // Create task (only company users)
@@ -22,6 +27,18 @@ router.get(
     next();
   },
   getTasks
+);
+
+// Get tasks by company id
+router.get(
+  "/company/:companyId",
+  (req, res, next) => {
+    logger.debug("GET /tasks/company/:companyId route accessed", {
+      companyId: req.params.companyId,
+    });
+    next();
+  },
+  getTasksByCompany
 );
 
 // Get task by ID

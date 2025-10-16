@@ -244,4 +244,68 @@ module.exports = {
   createTask,
   getTasks,
   getTaskById,
+  // List tasks by company id (posted_by)
+  getTasksByCompany: async (req, res) => {
+    const { companyId } = req.params;
+    logger.debug("getTasksByCompany called", { companyId });
+
+    if (!companyId) {
+      return error(res, "companyId is required", 400);
+    }
+
+    try {
+      logger.debug("Fetching tasks for company", { companyId });
+      const { data: tasks, error: tasksError } = await supabase
+        .from("tasks")
+        .select(
+          `
+          task_id,
+          title,
+          description,
+          effort_hours,
+          expiry_date,
+          created_at,
+          posted_by,
+          users!tasks_posted_by_fkey(name, email)
+        `
+        )
+        .eq("posted_by", companyId)
+        .order("created_at", { ascending: false });
+
+      if (tasksError) {
+        logger.error("Failed to fetch tasks by company", { companyId, error: tasksError.message });
+        throw tasksError;
+      }
+
+      const taskIds = (tasks || []).map((t) => t.task_id);
+      if (taskIds.length === 0) {
+        return success(res, []);
+      }
+
+      const { data: domainRows, error: domainsError } = await supabase
+        .from("task_domains")
+        .select("task_id, domain")
+        .in("task_id", taskIds);
+      if (domainsError) {
+        logger.error("Failed to fetch domains for company tasks", { error: domainsError.message });
+        throw domainsError;
+      }
+
+      const taskIdToDomains = new Map();
+      for (const row of domainRows || []) {
+        const list = taskIdToDomains.get(row.task_id) || [];
+        list.push(row.domain);
+        taskIdToDomains.set(row.task_id, list);
+      }
+
+      const result = (tasks || []).map((t) => ({
+        ...t,
+        domains: taskIdToDomains.get(t.task_id) || [],
+      }));
+      success(res, result);
+    } catch (e) {
+      logger.error("getTasksByCompany error", { companyId, error: e.message, stack: e.stack });
+      error(res, e.message, 500);
+    }
+  },
 };
