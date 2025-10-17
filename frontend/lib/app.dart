@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'pages/unified_auth_page.dart';
-import 'pages/verify_otp_page.dart';
-import 'pages/forgot_password_page.dart';
-import 'pages/main_navigator.dart';
-import 'pages/onboarding_page.dart';
-import 'pages/profile_admin_pages.dart';
-import 'pages/portfolio_page.dart';
-import 'pages/submission_pages.dart';
-import 'pages/role_select_page.dart';
-import 'pages/splash_screen.dart';
-import 'pages/tasks_pages.dart';
+import 'pages/auth/unified_auth_page.dart';
+import 'pages/auth/verify_otp_page.dart';
+import 'pages/auth/forgot_password_page.dart';
+import 'pages/dashboard/main_navigator.dart';
+import 'pages/onboarding/onboarding_page.dart';
+import 'pages/profile/profile_admin_pages.dart';
+import 'pages/portfolio/portfolio_page.dart';
+import 'pages/submissions/submission_pages.dart';
+import 'pages/auth/role_select_page.dart';
+import 'pages/onboarding/splash_screen.dart';
+import 'pages/tasks/tasks_pages.dart';
 import 'providers/auth_provider.dart';
 import 'theme/app_theme.dart';
 

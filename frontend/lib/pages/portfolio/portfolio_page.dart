@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/portfolio_model.dart';
-import '../providers/auth_provider.dart';
-import '../providers/portfolio_provider.dart';
-import '../widgets/layout/app_scaffold.dart';
-import '../widgets/portfolio/portfolio_card.dart';
-import '../widgets/portfolio/portfolio_stats.dart';
+import '../../models/portfolio_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/portfolio_provider.dart';
+import '../../widgets/layout/app_scaffold.dart';
+import '../../widgets/portfolio/portfolio_card.dart';
+import '../../widgets/portfolio/portfolio_stats.dart';
 
 class PortfolioPage extends StatefulWidget {
   const PortfolioPage({super.key, required this.userId});

@@ -6,7 +6,7 @@ import 'bottom_nav_bar.dart';
 
 class ExternalNavScope extends InheritedWidget {
   final bool hasBottomNav;
-  const ExternalNavScope({super.key, required this.hasBottomNav, required Widget child}) : super(child: child);
+  const ExternalNavScope({super.key, required this.hasBottomNav, required super.child});
 
   static ExternalNavScope? maybeOf(BuildContext context) {
     return context.dependOnInheritedWidgetOfExactType<ExternalNavScope>();

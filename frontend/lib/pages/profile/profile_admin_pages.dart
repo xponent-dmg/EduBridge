@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/user_model.dart';
-import '../providers/auth_provider.dart';
-import '../providers/edupoints_provider.dart';
-import '../providers/portfolio_provider.dart';
-import '../providers/submission_provider.dart';
-import '../providers/task_provider.dart';
-import '../services/api_client.dart';
-import '../theme/app_theme.dart';
-import '../widgets/common/app_button.dart';
-import '../widgets/dashboard/edupoints_card.dart';
-import '../widgets/layout/app_scaffold.dart';
+import '../../models/user_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/edupoints_provider.dart';
+import '../../providers/portfolio_provider.dart';
+import '../../providers/submission_provider.dart';
+import '../../providers/task_provider.dart';
+import '../../services/api_client.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/common/app_button.dart';
+import '../../widgets/dashboard/edupoints_card.dart';
+import '../../widgets/layout/app_scaffold.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key, this.userId});

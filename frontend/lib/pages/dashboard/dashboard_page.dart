@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/task_model.dart';
-import '../providers/auth_provider.dart';
-import '../providers/portfolio_provider.dart';
-import '../providers/submission_provider.dart';
-import '../providers/task_provider.dart';
-import '../providers/user_provider.dart';
-import '../theme/app_theme.dart';
-import '../widgets/dashboard/stats_card.dart';
-import '../widgets/dashboard/task_card.dart';
-import '../widgets/dashboard/welcome_header.dart';
-import '../widgets/layout/app_scaffold.dart';
+import '../../models/task_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/portfolio_provider.dart';
+import '../../providers/submission_provider.dart';
+import '../../providers/task_provider.dart';
+import '../../providers/user_provider.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/dashboard/stats_card.dart';
+import '../../widgets/dashboard/task_card.dart';
+import '../../widgets/dashboard/welcome_header.dart';
+import '../../widgets/layout/app_scaffold.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key, this.legacyToken});

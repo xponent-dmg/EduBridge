@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../providers/auth_provider.dart';
-import '../widgets/layout/app_scaffold.dart';
+import '../../providers/auth_provider.dart';
+import '../../widgets/layout/app_scaffold.dart';
 import 'dashboard_page.dart';
-import 'tasks_pages.dart';
-import 'submission_pages.dart';
-import 'portfolio_page.dart';
-import 'profile_admin_pages.dart';
+import '../tasks/tasks_pages.dart';
+import '../submissions/submission_pages.dart';
+import '../portfolio/portfolio_page.dart';
+import '../profile/profile_admin_pages.dart';
 
 /// MainNavigator holds an indexed page stack for efficient bottom nav rendering.
 /// Only renders the active page; avoids rebuilding inactive pages.

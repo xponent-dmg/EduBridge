@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../providers/auth_provider.dart';
-import '../models/task_model.dart';
-import '../providers/submission_provider.dart';
-import '../providers/task_provider.dart';
-import '../widgets/common/app_button.dart';
-import '../widgets/layout/app_scaffold.dart';
-import '../widgets/tasks/task_card.dart';
-import '../widgets/tasks/task_detail_header.dart';
-import '../widgets/tasks/task_filter_bar.dart';
+import '../../providers/auth_provider.dart';
+import '../../models/task_model.dart';
+import '../../providers/submission_provider.dart';
+import '../../providers/task_provider.dart';
+import '../../widgets/common/app_button.dart';
+import '../../widgets/layout/app_scaffold.dart';
+import '../../widgets/tasks/task_card.dart';
+import '../../widgets/tasks/task_detail_header.dart';
+import '../../widgets/tasks/task_filter_bar.dart';
 
 class TaskListPage extends StatefulWidget {
   const TaskListPage({super.key});
