@@ -504,9 +504,14 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
   }
 
   Future<bool> _hasSubmitted(String taskId) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final submissionProvider = Provider.of<SubmissionProvider>(context, listen: false);
 
-    await submissionProvider.loadTaskSubmissions(taskId);
+    final userId = authProvider.currentUser?.userId;
+    if (userId == null || userId.isEmpty) return false;
+
+    // Load only the current user's submissions and check if any belong to this task
+    await submissionProvider.loadUserSubmissions(userId);
     return submissionProvider.submissions.any((s) => s.taskId == taskId);
   }
 }

@@ -20,7 +20,15 @@ class AppProviders extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
 
-        ProxyProvider<AuthProvider, ApiClient>(update: (_, auth, __) => ApiClient(authToken: auth.token)),
+        // Keep a single ApiClient instance and update its token when auth changes
+        ProxyProvider<AuthProvider, ApiClient>(
+          create: (_) => ApiClient(),
+          update: (_, auth, client) {
+            final api = client ?? ApiClient();
+            api.authToken = auth.token;
+            return api;
+          },
+        ),
 
         ChangeNotifierProxyProvider<ApiClient, TaskProvider>(
           create: (context) => TaskProvider(apiClient: Provider.of<ApiClient>(context, listen: false)),
