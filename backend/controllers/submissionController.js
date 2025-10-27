@@ -335,17 +335,37 @@ const getFilesForSubmission = async (req, res) => {
   }
 };
 
-// Get submissions for a user (unsupported)
+// Get submissions for a user
 const getSubmissionsByUser = async (req, res) => {
   const { id } = req.params;
   logger.debug("getSubmissionsByUser called", { userId: id });
 
   try {
-    logger.warn("getSubmissionsByUser is unsupported: submissions are not linked to user_id");
-    return error(res, "Submissions are not linked to user_id; filter by task instead", 400);
+    // Fetch submissions for this user
+    const { data, error: dbError } = await supabase
+      .from("submissions")
+      .select("*")
+      .eq("user_id", id);
+
+    if (dbError) {
+      logger.error("Supabase query failed", { error: dbError.message });
+      return error(res, "Database query failed", 500);
+    }
+
+    if (!data || data.length === 0) {
+      logger.info("No submissions found for user", { userId: id });
+      return success(res, [], "No submissions found for this user");
+    }
+
+    logger.info("Fetched submissions for user", { userId: id, count: data.length });
+    return success(res, data, "Submissions fetched successfully");
   } catch (e) {
-    logger.error("getSubmissionsByUser error", { userId: id, error: e.message, stack: e.stack });
-    error(res, e.message, 500);
+    logger.error("getSubmissionsByUser error", {
+      userId: id,
+      error: e.message,
+      stack: e.stack,
+    });
+    return error(res, e.message, 500);
   }
 };
 
