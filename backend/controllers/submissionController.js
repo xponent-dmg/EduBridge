@@ -96,6 +96,7 @@ const createSubmission = async (req, res) => {
 
   try {
     const { task_id } = req.body;
+    const authUserId = req.user?.id;
     if (!task_id) {
       logger.warn("createSubmission failed - Missing required fields", {
         hasTaskId: !!task_id,
@@ -105,6 +106,11 @@ const createSubmission = async (req, res) => {
     if (!req.file) {
       logger.warn("createSubmission failed - No file provided");
       return error(res, "file is required");
+    }
+
+    if (!authUserId) {
+      logger.warn("createSubmission failed - Not authenticated or missing user in request context");
+      return error(res, "Not authenticated", 401);
     }
 
     logger.debug("Verifying task exists", { taskId: task_id });
@@ -120,10 +126,10 @@ const createSubmission = async (req, res) => {
       throw taskError;
     }
 
-    logger.debug("Creating submission record", { taskId: task_id });
+    logger.debug("Creating submission record", { taskId: task_id, userId: authUserId });
     const { data, error: dbError } = await supabase
       .from("submissions")
-      .insert([{ task_id, status: "pending" }])
+      .insert([{ task_id, user_id: authUserId, status: "pending" }])
       .select()
       .single();
 
@@ -352,13 +358,10 @@ const getSubmissionsByUser = async (req, res) => {
       return error(res, "Database query failed", 500);
     }
 
-    if (!data || data.length === 0) {
-      logger.info("No submissions found for user", { userId: id });
-      return success(res, [], "No submissions found for this user");
-    }
+    const shaped = (data || []).map((s) => ({ ...s, submitted_at: s.submit_time }));
 
-    logger.info("Fetched submissions for user", { userId: id, count: data.length });
-    return success(res, data, "Submissions fetched successfully");
+    logger.info("Fetched submissions for user", { userId: id, count: shaped.length });
+    return success(res, shaped);
   } catch (e) {
     logger.error("getSubmissionsByUser error", {
       userId: id,

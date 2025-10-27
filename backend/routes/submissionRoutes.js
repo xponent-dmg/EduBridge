@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const logger = require("../utils/logger");
+const { authenticate } = require("../middleware/authMiddleware");
 const {
   createSubmission,
   getSubmissionById,
@@ -16,15 +17,21 @@ const {
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Create new submission for a task with an attached file (field name: "file")
-// Ensure multer runs BEFORE we attempt to access req.body/req.file
+// Authenticate BEFORE accepting file upload to avoid storing unauthorized uploads
 router.post(
   "/",
+  (req, res, next) => {
+    logger.debug("POST /submissions route accessed (pre-auth)");
+    next();
+  },
+  authenticate,
   upload.single("file"),
   (req, res, next) => {
-    logger.debug("POST /submissions route accessed", {
+    logger.debug("POST /submissions route accessed (post-upload)", {
       hasFile: !!req.file,
       fileName: req.file?.originalname,
       bodyKeys: Object.keys(req.body || {}),
+      authUserId: req.user?.id,
     });
     next();
   },
