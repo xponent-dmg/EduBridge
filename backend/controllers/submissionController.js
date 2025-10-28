@@ -230,7 +230,17 @@ const updateSubmissionStatus = async (req, res) => {
       return success(res, { updated: sub, portfolio: null });
     }
 
-    // 2) On approve → add to portfolio_entries (if not exists)
+    // 2) On approve → add to portfolio_entries (if not exists) ONLY when grade >= 80
+    const effectiveGrade = typeof sub?.grade === "number" ? sub.grade : Number(grade);
+    if (!(effectiveGrade >= 80)) {
+      logger.debug("Accepted but below portfolio threshold; skipping portfolio add", {
+        submissionId: id,
+        grade: effectiveGrade,
+      });
+      return success(res, { updated: sub, portfolio: null });
+    }
+
+    // Add to portfolio if above threshold
     logger.debug("Checking for existing portfolio entry", { submissionId: id });
     const { data: existing } = await supabase
       .from("portfolio_entries")
@@ -383,10 +393,20 @@ const updateSubmissionGrade = async (req, res) => {
   });
 
   try {
-    logger.debug("Updating submission grade and feedback", { submissionId: id, grade, feedback });
+    logger.debug("Updating submission grade/feedback and deriving status", {
+      submissionId: id,
+      grade,
+      feedback,
+    });
+
+    // Determine status from grade (>=60 => accepted, else rejected)
+    const numericGrade = Number(grade);
+    const derivedStatus =
+      Number.isFinite(numericGrade) && numericGrade >= 60 ? "accepted" : "rejected";
+
     const { data: sub, error: updErr } = await supabase
       .from("submissions")
-      .update({ grade, feedback })
+      .update({ grade: numericGrade, feedback, status: derivedStatus })
       .eq("submission_id", id)
       .select()
       .single();
@@ -399,8 +419,48 @@ const updateSubmissionGrade = async (req, res) => {
       throw updErr;
     }
 
-    logger.debug("updateSubmissionGrade completed successfully", { submissionId: id });
-    success(res, { updated: sub });
+    // If accepted and grade >= 80, ensure portfolio entry exists
+    if (derivedStatus === "accepted" && numericGrade >= 80) {
+      logger.debug("Grade meets portfolio threshold; ensuring portfolio entry", {
+        submissionId: id,
+        numericGrade,
+      });
+      const { data: existing } = await supabase
+        .from("portfolio_entries")
+        .select("entry_id")
+        .eq("submission_id", id)
+        .maybeSingle();
+
+      let portfolioEntry = existing;
+      if (!existing) {
+        const { data: insPE, error: peErr } = await supabase
+          .from("portfolio_entries")
+          .insert([{ submission_id: id, verified: true }])
+          .select()
+          .single();
+        if (peErr) {
+          logger.error("Failed to create portfolio entry after grading", {
+            submissionId: id,
+            error: peErr.message,
+          });
+          throw peErr;
+        }
+        portfolioEntry = insPE;
+        logger.debug("Portfolio entry created after grading", {
+          portfolioEntryId: portfolioEntry.entry_id,
+        });
+      } else {
+        logger.debug("Portfolio entry already exists after grading", {
+          portfolioEntryId: existing.entry_id,
+        });
+      }
+      logger.debug("updateSubmissionGrade completed with portfolio", { submissionId: id });
+      success(res, { updated: sub, portfolio: portfolioEntry });
+      return;
+    }
+
+    logger.debug("updateSubmissionGrade completed (no portfolio)", { submissionId: id });
+    success(res, { updated: sub, portfolio: null });
   } catch (e) {
     logger.error("updateSubmissionGrade error", {
       submissionId: id,

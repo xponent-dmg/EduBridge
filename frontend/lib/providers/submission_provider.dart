@@ -145,13 +145,29 @@ class SubmissionProvider extends ChangeNotifier {
       _status = SubmissionLoadStatus.loading;
       notifyListeners();
 
-      await _apiClient.patch('/submissions/$submissionId/grade', body: {'grade': grade, 'feedback': feedback});
+      final res = await _apiClient.patch(
+        '/submissions/$submissionId/grade',
+        body: {'grade': grade, 'feedback': feedback},
+      );
+      final Map<String, dynamic>? updated = res['data'] != null && res['data']['updated'] != null
+          ? res['data']['updated'] as Map<String, dynamic>
+          : null;
 
       // Update the submission in our local list
       final index = _submissions.indexWhere((s) => s.submissionId == submissionId);
       if (index >= 0) {
-        final updated = _submissions[index].copyWith(grade: grade, feedback: feedback);
-        _submissions[index] = updated;
+        if (updated != null) {
+          _submissions[index] = _submissions[index].copyWith(
+            grade: updated['grade'] as int?,
+            feedback: updated['feedback'] as String?,
+            status: updated['status'] as String?,
+          );
+        } else {
+          // Fallback if backend shape changes
+          // Also derive status locally based on grade
+          final derived = grade >= 60 ? 'accepted' : 'rejected';
+          _submissions[index] = _submissions[index].copyWith(grade: grade, feedback: feedback, status: derived);
+        }
       }
 
       _status = SubmissionLoadStatus.success;

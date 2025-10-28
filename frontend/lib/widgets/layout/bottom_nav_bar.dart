@@ -34,14 +34,12 @@ class AppBottomNavBar extends StatelessWidget {
         const BottomNavigationBarItem(icon: Icon(Icons.task_alt), label: 'Tasks'),
         const BottomNavigationBarItem(icon: Icon(Icons.upload_file), label: 'Submissions'),
         const BottomNavigationBarItem(icon: Icon(Icons.work_outline), label: 'Portfolio'),
-        const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
       ];
     } else if (role == 'company') {
       return [
         const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
         const BottomNavigationBarItem(icon: Icon(Icons.task_alt), label: 'Tasks'),
         const BottomNavigationBarItem(icon: Icon(Icons.assignment_turned_in), label: 'Submissions'),
-        const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
       ];
     } else if (role == 'admin') {
       return [
@@ -76,9 +74,6 @@ class AppBottomNavBar extends StatelessWidget {
         case 3:
           Navigator.pushReplacementNamed(context, '/portfolio');
           break;
-        case 4:
-          Navigator.pushReplacementNamed(context, '/profile');
-          break;
       }
     } else if (role == 'company') {
       switch (index) {
@@ -90,9 +85,6 @@ class AppBottomNavBar extends StatelessWidget {
           break;
         case 2:
           Navigator.pushReplacementNamed(context, '/submissions/review');
-          break;
-        case 3:
-          Navigator.pushReplacementNamed(context, '/profile');
           break;
       }
     } else if (role == 'admin') {

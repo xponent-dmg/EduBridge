@@ -4,6 +4,7 @@ class SubmissionModel {
   final String? fileUrl;
   final String? feedback;
   final int? grade;
+  final String? status; // pending | accepted | rejected
   final DateTime submittedAt;
 
   SubmissionModel({
@@ -12,6 +13,7 @@ class SubmissionModel {
     this.fileUrl,
     this.feedback,
     this.grade,
+    this.status,
     DateTime? submittedAt,
   }) : submittedAt = submittedAt ?? DateTime.now();
 
@@ -22,6 +24,7 @@ class SubmissionModel {
       fileUrl: json['file_url'],
       feedback: json['feedback'],
       grade: json['grade'],
+      status: json['status'],
       submittedAt: json['submitted_at'] != null ? DateTime.parse(json['submitted_at']) : DateTime.now(),
     );
   }
@@ -33,6 +36,7 @@ class SubmissionModel {
       'file_url': fileUrl,
       'feedback': feedback,
       'grade': grade,
+      'status': status,
       'submitted_at': submittedAt.toIso8601String(),
     };
   }
@@ -43,6 +47,7 @@ class SubmissionModel {
     String? fileUrl,
     String? feedback,
     int? grade,
+    String? status,
     DateTime? submittedAt,
   }) {
     return SubmissionModel(
@@ -51,6 +56,7 @@ class SubmissionModel {
       fileUrl: fileUrl ?? this.fileUrl,
       feedback: feedback ?? this.feedback,
       grade: grade ?? this.grade,
+      status: status ?? this.status,
       submittedAt: submittedAt ?? this.submittedAt,
     );
   }

@@ -34,7 +34,7 @@ class AppScaffold extends StatelessWidget {
     this.title = 'EduBridge',
     this.actions,
     this.showBackButton = true,
-    this.showBottomNav = true,
+    this.showBottomNav = false,
     this.currentIndex = 0,
     this.floatingActionButton,
     this.floatingActionButtonLocation,
